@@ -1,3 +1,5 @@
-# Repository setup required :wave:
-    
-Please visit the website URL :point_right: for this repository to complete the setup of this repository and configure access controls.
+# Build Agents with Claude Code
+
+This repo demonstrates how to use **Claude Code** to develop Power Platform agents.
+
+👉 See the [Setup Guide](SETUP_GUIDE.md) to get started.

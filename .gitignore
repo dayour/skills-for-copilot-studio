@@ -1,0 +1,20 @@
+# Copilot Studio Claude Code Project - Git Ignore
+
+# Agents clones
+src/
+*.zip
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# VS Code settings (optional - remove if you want to share settings)
+.vscode/
+
+# Claude tmp files (in any subfolder)
+tmpcloude-*
+
+# Environment files (if used in the future)
+.env
+.env.local
