@@ -13,7 +13,8 @@
       "Bash(tail:*)",
       "Bash(mv:*)",
       "Skill(add-child-agent)",
-      "Skill(add-knowledge)"
+      "Skill(add-knowledge)",
+      "Skill(run-tests)"
     ]
   }
 }
