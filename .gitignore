@@ -4,6 +4,9 @@
 src/
 *.zip
 
+# Agent tests
+tests/
+
 # Python cache
 __pycache__/
 *.pyc
