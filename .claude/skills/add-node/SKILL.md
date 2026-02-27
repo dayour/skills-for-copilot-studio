@@ -1,5 +1,5 @@
 ---
-description: Add or modify a node in an existing Copilot Studio topic. Use when the user asks to add a question, message, condition, variable, or other node to a topic.
+description: Add or modify a node in an existing Copilot Studio topic. Use when the user asks to add a question, message, condition, variable, or other node to a topic. Do NOT use this for generative answers or knowledge search — use /add-generative-answers instead.
 argument-hint: <node-type> to <topic-name>
 allowed-tools: Bash(python *), Read, Write, Edit, Glob
 ---
@@ -9,6 +9,8 @@ allowed-tools: Bash(python *), Read, Write, Edit, Glob
 Add a new node to an existing Copilot Studio topic, or modify an existing one.
 
 In Copilot Studio, the elements inside a topic's `actions` array are **nodes** (SendActivity, Question, ConditionGroup, etc.). These are different from **actions** (`actions/*.mcs.yml`), which are connector-based TaskDialogs. This skill handles nodes within topics.
+
+**For generative answers (SearchAndSummarizeContent, AnswerQuestionWithAI)**, use the `/add-generative-answers` skill instead — it has the specific patterns, follow-up ConditionGroup logic, and disambiguation guidance needed to set them up correctly.
 
 ## Instructions
 
@@ -47,7 +49,6 @@ In Copilot Studio, the elements inside a topic's `actions` array are **nodes** (
 | `ConditionGroup` | Branching logic | `kind`, `id`, `conditions` |
 | `BeginDialog` | Call another topic | `kind`, `id`, `dialog` |
 | `EndDialog` | End topic | `kind`, `id` |
-| `SearchAndSummarizeContent` | Generative answers | `kind`, `id`, `variable`, `userInput` |
 | `CancelAllDialogs` | Cancel all topics | `kind`, `id` |
 
 ## Generative Orchestration Guidelines

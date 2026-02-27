@@ -37,7 +37,7 @@ The above ones are already used as examples with real parameter values, like "se
 
 - `/lookup-schema` - Query schema definitions
 - `/new-topic` - Create topic from template or schema
-- `/add-node` - Add node to existing topic
+- `/add-node` - Add node to existing topic (not for generative answers)
 - `/validate` - Validate YAML structure
 - `/add-knowledge` - Add knowledge source (public website or SharePoint)
 - `/list-topics` - List solution topics
@@ -45,7 +45,7 @@ The above ones are already used as examples with real parameter values, like "se
 - `/edit-agent` - Edit agent settings/instructions
 - `/edit-triggers` - Modify topic triggers (phrases and model description)
 - `/add-child-agent` - Add/configure child agents
-- `/add-generative-answers` - Add generative answer nodes
+- `/add-generative-answers` - Add generative answer nodes (use this instead of `/add-node` for SearchAndSummarizeContent / AnswerQuestionWithAI)
 
 ## Agent Discovery (Important)
 
@@ -81,6 +81,7 @@ A good practice to avoid conflict would be to use 6-8 random characters after th
 - In the YAML, expressions start with `=` prefix: `condition: =System.FallbackCount < 3`
 - String interpolation uses `{}`: `activity: "Error: {System.Error.Message}"`
 - Variable init on first assignment: `variable: init:Topic.MyVar`
+- `System.Activity.Text` is the last message sent by the user — commonly used as input for `SearchAndSummarizeContent` and other nodes that need the user's query
 
 ## Publish new changes: Workflow
 
