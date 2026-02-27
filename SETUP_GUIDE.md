@@ -392,9 +392,9 @@ If something goes wrong, you can re-clone the original agent using the VS Code E
 | `/validate <path>` | Validate a YAML file |
 | `/list-topics` | List all topics in the solution |
 | `/list-kinds` | List all available kind values |
-| `/add-knowledge <url>` | Add a public website knowledge source |
+| `/add-knowledge <url>` | Add a knowledge source (public website or SharePoint) |
 | `/edit-agent <what to change>` | Edit agent settings or instructions |
-| `/edit-triggers <topic>` | Modify topic trigger phrases |
+| `/edit-triggers <topic>` | Modify topic triggers (phrases and model description) |
 | `/add-child-agent <description>` | Add a child agent |
 | `/add-generative-answers <topic>` | Add generative answer nodes |
 

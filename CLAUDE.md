@@ -39,11 +39,11 @@ The above ones are already used as examples with real parameter values, like "se
 - `/new-topic` - Create topic from template or schema
 - `/add-node` - Add node to existing topic
 - `/validate` - Validate YAML structure
-- `/add-knowledge` - Add public website knowledge
+- `/add-knowledge` - Add knowledge source (public website or SharePoint)
 - `/list-topics` - List solution topics
 - `/list-kinds` - List available kind values
 - `/edit-agent` - Edit agent settings/instructions
-- `/edit-triggers` - Modify topic trigger phrases
+- `/edit-triggers` - Modify topic triggers (phrases and model description)
 - `/add-child-agent` - Add/configure child agents
 - `/add-generative-answers` - Add generative answer nodes
 

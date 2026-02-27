@@ -71,11 +71,11 @@ After making changes, push them back using the **Copilot Studio VS Code Extensio
 | `/new-topic` | Create a new topic |
 | `/add-node` | Add or modify nodes in a topic |
 | `/validate` | Validate YAML structure |
-| `/add-knowledge` | Add public website knowledge source |
+| `/add-knowledge` | Add knowledge source (public website or SharePoint) |
 | `/list-topics` | List all topics in the agent |
 | `/list-kinds` | List available YAML kind values |
 | `/edit-agent` | Edit agent settings or instructions |
-| `/edit-triggers` | Modify topic trigger phrases |
+| `/edit-triggers` | Modify topic triggers (phrases and model description) |
 | `/add-child-agent` | Add/configure child agents |
 | `/add-generative-answers` | Add generative answer nodes |
 
