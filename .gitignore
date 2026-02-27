@@ -13,7 +13,7 @@ __pycache__/
 .vscode/
 
 # Claude tmp files (in any subfolder)
-tmpcloude-*
+tmpclaude-*
 
 # Environment files (if used in the future)
 .env
