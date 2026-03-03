@@ -6,7 +6,8 @@
       "Bash(mv:*)",
       "Skill(add-child-agent)",
       "Skill(add-knowledge)",
-      "Skill(run-tests)"
+      "Skill(run-tests)",
+      "WebFetch(domain:docs.anthropic.com)"
     ]
   }
 }

@@ -1,4 +1,5 @@
 {
+  "mode": "automatic",
   "dataverse": {
     "environmentUrl": "https://YOUR_ORG.crm.dynamics.com",
     "tenantId": "YOUR_TENANT_ID",
