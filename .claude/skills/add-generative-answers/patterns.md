@@ -118,3 +118,45 @@ beginDialog:
 ```
 
 The `priority: -1` ensures this runs before the standard fallback, giving knowledge sources a chance to answer before the "I don't understand" message. This pattern searches **all** agent knowledge sources (no `knowledgeSources` restriction).
+
+## Pattern 4: Precision Search (raw results, no AI summary)
+
+Use when you need verbatim/exact content from knowledge sources — insurance policies, HR documents, legal text, compliance references — where AI summarization could lose critical details.
+
+This pattern uses `SearchKnowledgeSources` (returns raw search results without AI summarization) combined with `CreateSearchQuery` (AI-generated search query from user input).
+
+```yaml
+actions:
+  # Step 1: Generate an optimized search query from the user's input
+  - kind: CreateSearchQuery
+    id: createSearchQuery_<random>
+    userInput: =System.Activity.Text
+    result: Topic.SearchQuery
+
+  # Step 2: Search knowledge sources with the optimized query (no AI summary)
+  - kind: SearchKnowledgeSources
+    id: searchKnowledge_<random>
+    userInput: =Topic.SearchQuery
+    result: Topic.RawResults
+    knowledgeSources:
+      kind: SearchSpecificKnowledgeSources
+      knowledgeSources:
+        - <schemaName>.topic.<KnowledgeSourceName>
+
+  # Step 3: Send raw results to the user
+  - kind: ConditionGroup
+    id: conditionGroup_<random>
+    conditions:
+      - id: conditionItem_<random>
+        condition: =!IsBlank(Topic.RawResults)
+        actions:
+          - kind: SendActivity
+            id: sendActivity_<random>
+            activity: "{Topic.RawResults}"
+```
+
+**When to use Pattern 4 over Pattern 1:**
+- Pattern 1 (`SearchAndSummarizeContent`) uses AI to summarize the search results into a coherent response — good for most Q&A scenarios
+- Pattern 4 (`SearchKnowledgeSources`) returns raw, unsummarized results — use when summarization could lose important details or when you need to process the raw data yourself
+
+**Citation removal tip:** If using Pattern 1 but want to remove citation markers (`[1]`, `[2]`), set `autoSend: false` and use `Substitute()` to strip them before sending. See the Response Post-Processing Patterns section in REFERENCE.md.

@@ -38,3 +38,44 @@
 - **User's last message**: `userInput: =System.Activity.Text` — most common for direct Q&A
 - **Topic input variable**: `userInput: =Topic.QuestionToBeAnswered` — when the orchestrator or a previous node provides the question
 - **Crafted expression**: You can combine strings with variables to build a specific query, e.g., ask the user for a topic and then search for "Give me information about " & that topic
+
+## SearchKnowledgeSources Property Reference
+
+Returns raw search results from knowledge sources **without AI summarization**. Use for precision/verbatim scenarios.
+
+```yaml
+- kind: SearchKnowledgeSources
+  id: searchKnowledge_<random>
+  userInput: =System.Activity.Text
+  result: Topic.RawResults
+  knowledgeSources:
+    kind: SearchSpecificKnowledgeSources
+    knowledgeSources:
+      - <schemaName>.topic.<KnowledgeSourceFileName>
+```
+
+| Property | Description |
+|----------|-------------|
+| `userInput` | The search query expression. Same options as `SearchAndSummarizeContent.userInput`. |
+| `result` | Variable where raw search results are stored. |
+| `knowledgeSources` | Restrict the search to specific knowledge sources. Same format as `SearchAndSummarizeContent`. Omit to search all. |
+| `webBrowsing` | If `true`, also searches the web via Bing. |
+| `fileSearchDataSource` | Controls file search behavior. `kind: DoNotSearchFiles` disables file search. |
+| `historyType` | Controls conversation history inclusion. |
+
+## CreateSearchQuery Property Reference
+
+Uses AI to generate an optimized search query from the user's input. Pair with `SearchKnowledgeSources` for better search accuracy.
+
+```yaml
+- kind: CreateSearchQuery
+  id: createSearchQuery_<random>
+  userInput: =System.Activity.Text
+  result: Topic.SearchQuery
+```
+
+| Property | Description |
+|----------|-------------|
+| `userInput` | The user's raw input to rewrite into a search query. |
+| `result` | Variable where the AI-generated search query is stored. |
+| `historyType` | Controls conversation history inclusion for query generation. |

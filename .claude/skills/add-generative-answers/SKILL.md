@@ -38,6 +38,7 @@ If the user just wants the agent to answer questions from its knowledge, adding 
 4. **Read `settings.mcs.yml`** to check if `GenerativeActionsEnabled: true`. This determines the best pattern:
    - **`GenerativeActionsEnabled: true`** → prefer **Pattern 2 (Orchestrator)**: use topic inputs/outputs and let the orchestrator handle the response. This is the best approach for generative-orchestrated agents.
    - **`GenerativeActionsEnabled: false`** (or not set) → use **Pattern 1 (Direct Response)**: `autoSend: false` + manual SendActivity, or **Pattern 3 (Fallback Search)** for a simple all-knowledge fallback.
+   - **Verbatim/exact content needed** → use **Pattern 4 (Precision Search)**: `SearchKnowledgeSources` + `CreateSearchQuery` for raw results without AI summarization (insurance policies, HR docs, legal text).
 
 5. **Ask the user** to clarify the behavior (if not already clear from their request):
    - Should it search **all knowledge sources** or only **specific ones**?
@@ -50,12 +51,13 @@ If the user just wants the agent to answer questions from its knowledge, adding 
 
 ## SearchAndSummarizeContent vs AnswerQuestionWithAI
 
-| Node | Use When | Data Source |
-|------|----------|-------------|
-| `SearchAndSummarizeContent` | You want answers grounded in the agent's knowledge sources (websites, SharePoint, Dataverse) | Agent's configured knowledge |
-| `AnswerQuestionWithAI` | You want a response based only on conversation history and general model knowledge | No external data |
+| Node | Use When | Data Source | Output |
+|------|----------|-------------|--------|
+| `SearchAndSummarizeContent` | You want answers grounded in the agent's knowledge sources (websites, SharePoint, Dataverse) | Agent's configured knowledge | AI-summarized response |
+| `SearchKnowledgeSources` | You need verbatim/exact content — insurance policies, legal text, HR docs — where AI summarization could lose details | Agent's configured knowledge | Raw search results (no AI summary) |
+| `AnswerQuestionWithAI` | You want a response based only on conversation history and general model knowledge | No external data | AI-generated response |
 
-**Use `SearchAndSummarizeContent`** for the vast majority of cases (what people call "generative answers"). Use `AnswerQuestionWithAI` only when you explicitly want the model to respond without consulting knowledge sources.
+**Use `SearchAndSummarizeContent`** for the vast majority of cases (what people call "generative answers"). Use `SearchKnowledgeSources` when you need raw, unsummarized results for precision scenarios (pair with `CreateSearchQuery` for better search accuracy). Use `AnswerQuestionWithAI` only when you explicitly want the model to respond without consulting knowledge sources.
 
 ## Knowledge Source References
 

@@ -46,6 +46,7 @@ In Copilot Studio, the elements inside a topic's `actions` array are **nodes** (
 | `SendActivity` | Send message | `kind`, `id`, `activity` |
 | `Question` | Ask user input | `kind`, `id`, `variable`, `prompt`, `entity` |
 | `SetVariable` | Set/compute value | `kind`, `id`, `variable`, `value` |
+| `SetTextVariable` | Set text with interpolation (YAML-only, no canvas) | `kind`, `id`, `variable`, `value` |
 | `ConditionGroup` | Branching logic | `kind`, `id`, `conditions` |
 | `BeginDialog` | Call another topic | `kind`, `id`, `dialog` |
 | `EndDialog` | End topic | `kind`, `id` |
