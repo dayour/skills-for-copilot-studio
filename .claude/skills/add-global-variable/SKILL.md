@@ -12,13 +12,13 @@ Create a global variable that persists across all topics within a conversation.
 
 1. **Auto-discover the agent directory**:
    ```
-   Glob: src/**/agent.mcs.yml
+   Glob: agents/**/agent.mcs.yml
    ```
    Use the top-level agent. NEVER hardcode an agent name.
 
 2. **Read `settings.mcs.yml`** to get the `schemaName` prefix:
    ```
-   Read: src/<agent-dir>/settings.mcs.yml
+   Read: agents/<agent-dir>/settings.mcs.yml
    ```
    Extract the root-level `schemaName` value (e.g., `copilots_header_cre3c_fullagent`).
 
@@ -28,7 +28,7 @@ Create a global variable that persists across all topics within a conversation.
    - Whether the AI orchestrator should be aware of it (`aIVisibility`)
    - Default value (if any)
 
-4. **Create the variable file** at `src/<agent-dir>/variables/<VariableName>.mcs.yml`:
+4. **Create the variable file** at `agents/<agent-dir>/variables/<VariableName>.mcs.yml`:
 
 ```yaml
 # Name: <Human-readable Name>

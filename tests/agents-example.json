@@ -5,6 +5,6 @@
     "agentIdentifier": "YOUR_AGENT_SCHEMA_NAME",
     "clientId": "YOUR_CLIENT_ID",
     "dataverseEndpoint": "https://YOUR_ORG.crm.dynamics.com/",
-    "localPath": "src/YOUR_AGENT_FOLDER"
+    "localPath": "agents/YOUR_AGENT_FOLDER"
   }
 }

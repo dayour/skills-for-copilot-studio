@@ -29,7 +29,7 @@ If the user requests an action **not in the catalog**, refuse and tell them:
 
 1. **Auto-discover the agent directory**:
    ```
-   Glob: src/**/agent.mcs.yml
+   Glob: agents/**/agent.mcs.yml
    ```
    If multiple agents found, ask which one. NEVER hardcode an agent name.
 
@@ -54,7 +54,7 @@ If the user requests an action **not in the catalog**, refuse and tell them:
 6. **Read `settings.mcs.yml`** to extract the `schemaName` (e.g., `copilots_header_e1ca2`). This is needed for the connection reference.
 
 7. **Check if the connector already exists** in `connectionreferences.mcs.yml`:
-   - Read `src/<agent-dir>/connectionreferences.mcs.yml`
+   - Read `agents/<agent-dir>/connectionreferences.mcs.yml`
    - Search for the connector's API name (e.g., `shared_teams`) in the `connectorId` values
    - If found: **reuse** the existing `connectionReferenceLogicalName`
    - If NOT found: **generate a new one** (see Connection Reference Generation below)
@@ -69,7 +69,7 @@ If the user requests an action **not in the catalog**, refuse and tell them:
 
 9. **Save the action file** to:
    ```
-   src/<agent-dir>/actions/<ConnectorName>-<TitleName>.mcs.yml
+   agents/<agent-dir>/actions/<ConnectorName>-<TitleName>.mcs.yml
    ```
    - `<ConnectorName>`: connector name in PascalCase (e.g., `MicrosoftTeams`, `Outlook`)
    - `<TitleName>`: modelDisplayName with spaces removed and first letter capitalized (e.g., `Postmessageinachatorchannel`)

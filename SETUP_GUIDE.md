@@ -126,7 +126,7 @@ Follow these steps: https://github.com/microsoft/vscode-copilotstudio
 
 Clone the agent via the VS Code Copilot Studio Extension.
 
-The guideline is to put the agent folder into the `src/` directory with the unpacked YAML files.
+The guideline is to put the agent folder into the `agents/` directory with the unpacked YAML files.
 
 **Checkpoint 3:** Verify the clone was successful:
 
@@ -155,7 +155,7 @@ copilot-studio-dev/
 ├── scripts/
 │   └── schema-lookup.py
 ├── templates/
-└── src/
+└── agents/
     └── <your-agent-name>/
         ├── agent.mcs.yml           # Agent metadata
         ├── settings.mcs.yml        # Agent settings
@@ -241,7 +241,7 @@ Expected output: All available `kind` discriminator values from your schema.
 ### Step 5.5: Test Validation
 
 ```bash
-python scripts/schema-lookup.py validate src/<your-agent-name>/topics/Greeting.mcs.yml
+python scripts/schema-lookup.py validate agents/<your-agent-name>/topics/Greeting.mcs.yml
 ```
 
 Expected output: A `[PASS]`/`[WARN]`/`[FAIL]` validation report.
@@ -295,12 +295,12 @@ It should ask the user which product they're interested in and then provide info
 Claude should:
 1. Use the schema lookup to verify the correct structure
 2. Generate a valid YAML file with unique IDs
-3. Save it to the appropriate location in `src/<your-agent-name>/topics/`
+3. Save it to the appropriate location in `agents/<your-agent-name>/topics/`
 
 ### Step 7.2: Validate the Generated Topic
 
 ```
-/validate src/<your-agent-name>/topics/ProductInformation.topic.mcs.yml
+/validate agents/<your-agent-name>/topics/ProductInformation.topic.mcs.yml
 ```
 
 Claude should validate the generated YAML against the schema.
@@ -409,7 +409,7 @@ Use this checklist to verify your setup is complete:
 - [ ] Python dependencies installed (`pip install -r requirements.txt`)
 - [ ] Schema lookup script tested and working
 - [ ] VS Code Copilot Studio Extension installed
-- [ ] Existing agent cloned to `src/`
+- [ ] Existing agent cloned to `agents/`
 - [ ] Claude Code initialized and reading `CLAUDE.md`
 - [ ] Skills tested and working
 - [ ] YAML generation tested

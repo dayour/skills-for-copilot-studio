@@ -12,7 +12,7 @@ Generate a new Copilot Studio topic YAML file based on user requirements.
 
 1. **Auto-discover the agent directory**:
    ```
-   Glob: src/**/agent.mcs.yml
+   Glob: agents/**/agent.mcs.yml
    ```
    If multiple agents found, ask which one. NEVER hardcode an agent name.
 
@@ -52,7 +52,7 @@ Generate a new Copilot Studio topic YAML file based on user requirements.
 
 6. **Check settings.mcs.yml** for `GenerativeActionsEnabled`. Read the agent's `settings.mcs.yml` to check.
 
-7. **Save** to `src/<agent-name>/topics/<topic-name>.topic.mcs.yml`
+7. **Save** to `agents/<agent-name>/topics/<topic-name>.topic.mcs.yml`
 
 8. **MANDATORY: Validate the generated file** after saving:
    ```bash

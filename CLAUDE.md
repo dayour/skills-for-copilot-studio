@@ -20,7 +20,7 @@ project-root/
 │   ├── agents.json                         # Local agent registry (auto-discovered or manual)
 │   ├── settings.json                       # Test configuration (user fills in)
 │   └── test-results-*.csv                  # Downloaded test results
-└── src/AGENT-NAME/                         # YAML files representing the agent
+└── agents/AGENT-NAME/                         # YAML files representing the agent
     ├── topics/                             # Conversation topics
     ├── actions/                            # Connector-based actions
     ├── knowledge/                          # Knowledge sources
@@ -28,7 +28,7 @@ project-root/
     └── agents/                             # Child agents
 ```
 
-**Note**: The `src/AGENT-NAME/` directory is created when you clone your first agent from your environment. It doesn't exist until you clone a Copilot Studio agent. If the user does not know how to clone an agent, point them to the "Copilot Studio Extension inside VS Code".
+**Note**: Clone your Copilot Studio agents into the `agents/` directory using the VS Code Extension. The directory is included in the repo but its contents are gitignored (agent clones are user-specific).
 
 ## Schema Lookup (Critical)
 
@@ -66,7 +66,7 @@ The above ones are already used as examples with real parameter values, like "se
 
 ## Agent Discovery (Important)
 
-The agent name is dynamic — users clone their own agent. **NEVER hardcode an agent name or path.** Always auto-discover via `Glob: src/**/agent.mcs.yml`. If multiple agents found, ask which one.
+The agent name is dynamic — users clone their own agent. **NEVER hardcode an agent name or path.** Always auto-discover via `Glob: agents/**/agent.mcs.yml`. If multiple agents found, ask which one.
 
 ## Agent Registry (Shared Convention)
 
@@ -83,7 +83,7 @@ When a skill needs to connect to a published agent (e.g., `/chat-with-agent`, `/
     "agentIdentifier": "copilots_header_9b50c",
     "clientId": "user-provided-app-registration-id",
     "dataverseEndpoint": "https://org5d9d4b6b.crm.dynamics.com/",
-    "localPath": "src/Agent 7"
+    "localPath": "agents/Agent 7"
   }
 }
 ```
@@ -91,7 +91,7 @@ When a skill needs to connect to a published agent (e.g., `/chat-with-agent`, `/
 **Lookup convention** — when a skill needs connection info, follow these steps in order:
 
 1. **Check `tests/agents.json`** — if it exists and has a complete entry for the target agent, use it.
-2. **Auto-discover from VS Code extension clones** — glob for `**/.mcs/conn.json` (covers both `src/` subdirectories and the project root if Claude was initiated directly in a cloned agent folder). For each match:
+2. **Auto-discover from VS Code extension clones** — glob for `**/.mcs/conn.json` (covers both `agents/` subdirectories and the project root if Claude was initiated directly in a cloned agent folder). For each match:
    - Read `.mcs/conn.json` for `EnvironmentId`, `AccountInfo.TenantId`, and `DataverseEndpoint`
    - Read the sibling `settings.mcs.yml` (one level up from `.mcs/`) for `schemaName` (this is the `agentIdentifier`)
    - Read the sibling `agent.mcs.yml` for the display name

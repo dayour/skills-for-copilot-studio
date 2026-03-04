@@ -190,7 +190,7 @@ Works identically regardless of mode — only the data source differs.
 Mode-agnostic — works from analyzed failure data regardless of source.
 
 1. **For each failure, identify the relevant YAML file(s)**:
-   - Auto-discover the agent: `Glob: src/**/agent.mcs.yml`
+   - Auto-discover the agent: `Glob: agents/**/agent.mcs.yml`
    - Find the relevant topic by matching the test utterance against trigger phrases and model descriptions
    - Read the topic file to understand the current flow
 

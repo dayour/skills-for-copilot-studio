@@ -12,7 +12,7 @@ Create a new child agent (AgentDialog) that the parent agent's orchestrator can 
 
 1. **Auto-discover the parent agent directory**:
    ```
-   Glob: src/**/agent.mcs.yml
+   Glob: agents/**/agent.mcs.yml
    ```
    Use the top-level agent (not one inside an `agents/` subdirectory). NEVER hardcode an agent name.
 
@@ -30,7 +30,7 @@ Create a new child agent (AgentDialog) that the parent agent's orchestrator can 
 
 4. **Create the child agent directory** (Phase 1 — plain agent only, NO knowledge):
    ```
-   src/<parent-agent>/agents/<ChildAgentName>/
+   agents/<parent-agent>/agents/<ChildAgentName>/
    └── agent.mcs.yml
    ```
 
