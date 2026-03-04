@@ -7,15 +7,18 @@ src/
 # Agent tests
 tests/test-results*
 tests/settings.json
+tests/agents.json
 tests/.token_cache.json
 tests/node_modules/
-tests/.token_cache.json
 tests/package-lock.json
 
 # Python cache
 __pycache__/
 *.pyc
 *.pyo
+
+# Claude Code local permissions (user-specific trust preferences)
+.claude/settings.local.json
 
 # VS Code settings (optional - remove if you want to share settings)
 .vscode/
