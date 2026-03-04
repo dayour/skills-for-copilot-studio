@@ -16,7 +16,7 @@ In Copilot Studio, the elements inside a topic's `actions` array are **nodes** (
 
 1. **Auto-discover the agent directory**:
    ```
-   Glob: src/**/agent.mcs.yml
+   Glob: agents/**/agent.mcs.yml
    ```
    NEVER hardcode an agent name.
 

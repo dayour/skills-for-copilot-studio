@@ -56,7 +56,7 @@ This file contains reference tables for Copilot Studio YAML authoring. For workf
 
 ## Connector Actions (TaskDialog)
 
-Connector actions (`kind: TaskDialog`) invoke external connector operations. They are stored in `src/<agent>/actions/` and require a connection reference in `connectionreferences.mcs.yml`.
+Connector actions (`kind: TaskDialog`) invoke external connector operations. They are stored in `agents/<agent>/actions/` and require a connection reference in `connectionreferences.mcs.yml`.
 
 **Use `/add-action` to create actions from the verified catalog.** The schema can describe the structural properties of `TaskDialog` and `InvokeConnectorTaskAction`, but the specific inputs and outputs for each connector operation are connector-specific — use only verified sample templates.
 

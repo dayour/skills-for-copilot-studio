@@ -24,7 +24,7 @@ Place your `bot.schema.yaml-authoring.json` in the `reference/` directory.
 
 ### 4. Clone your Copilot Studio agent
 
-Use the **Copilot Studio VS Code Extension** to clone your agent into the `src/` directory. This downloads your agent's YAML files (topics, actions, knowledge, settings).
+Use the **Copilot Studio VS Code Extension** to clone your agent into the `agents/` directory. This downloads your agent's YAML files (topics, actions, knowledge, settings).
 
 ### 5. Start Claude Code
 
@@ -44,7 +44,7 @@ Invoke any skill directly with `/<skill-name>`:
 /new-topic A FAQ topic that answers questions about our return policy
 /add-node SendActivity node to Greeting topic
 /edit-triggers Greeting
-/validate src/My Agent/topics/Greeting.mcs.yml
+/validate agents/My Agent/topics/Greeting.mcs.yml
 /list-topics
 ```
 

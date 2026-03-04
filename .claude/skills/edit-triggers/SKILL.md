@@ -12,13 +12,13 @@ Modify how a topic gets triggered: **trigger phrases** (`triggerQueries`) and **
 
 1. **Auto-discover the agent directory**:
    ```
-   Glob: src/**/agent.mcs.yml
+   Glob: agents/**/agent.mcs.yml
    ```
    NEVER hardcode an agent name.
 
 2. **Find the target topic**:
    ```
-   Glob: src/<agent-name>/topics/*.topic.mcs.yml
+   Glob: agents/<agent-name>/topics/*.topic.mcs.yml
    ```
    If `$ARGUMENTS` specifies a topic name, match it. Otherwise, list all topics and ask which one.
 

@@ -51,7 +51,7 @@ A starter template is available at `templates/knowledge/glossary.csv`.
 
 ## Step 2 — Create the Knowledge Source
 
-Create a file in `src/<AGENT-NAME>/knowledge/` for the glossary source. Example: `glossary.knowledge.mcs.yml`.
+Create a file in `agents/<AGENT-NAME>/knowledge/` for the glossary source. Example: `glossary.knowledge.mcs.yml`.
 
 ```yaml
 # Name: Customer Glossary
@@ -70,7 +70,7 @@ source:
 
 ## Step 3 — Create the Global Variable
 
-Create `src/<AGENT-NAME>/variables/Glossary.mcs.yml`. Read `settings.mcs.yml` first to get the agent's `schemaName` prefix.
+Create `agents/<AGENT-NAME>/variables/Glossary.mcs.yml`. Read `settings.mcs.yml` first to get the agent's `schemaName` prefix.
 
 ```yaml
 # Name: Glossary
@@ -93,7 +93,7 @@ Or use the `add-global-variable` skill to generate this file.
 
 > **If you are also loading user context**, use the combined template at `templates/topics/conversation-init.topic.mcs.yml` instead. It merges both patterns into a single OnActivity topic with one `=IsBlank(Global.UserCountry)` condition.
 
-Create `src/<AGENT-NAME>/topics/conversation-init.topic.mcs.yml`:
+Create `agents/<AGENT-NAME>/topics/conversation-init.topic.mcs.yml`:
 
 ```yaml
 kind: AdaptiveDialog
@@ -128,7 +128,7 @@ beginDialog:
 
 ## Step 5 — Update Agent Instructions
 
-In `src/<AGENT-NAME>/agents/agent.mcs.yml` or `settings.mcs.yml`, add a glossary usage section to the agent's instructions:
+In `agents/<AGENT-NAME>/agents/agent.mcs.yml` or `settings.mcs.yml`, add a glossary usage section to the agent's instructions:
 
 ```yaml
 instructions: |
@@ -149,7 +149,7 @@ Before testing:
 - [ ] `triggerCondition: =false` is on the knowledge source
 - [ ] The knowledge source reference in `SearchAndSummarizeContent` matches the exact `.mcs.yml` filename
 - [ ] All `REPLACE` IDs are replaced with unique generated IDs
-- [ ] `Global.Glossary` variable exists at `src/<AGENT-NAME>/variables/Glossary.mcs.yml` with `schemaName` matching the agent prefix
+- [ ] `Global.Glossary` variable exists at `agents/<AGENT-NAME>/variables/Glossary.mcs.yml` with `schemaName` matching the agent prefix
 - [ ] Agent instructions reference `{Global.Glossary}` with clear usage rules
 
 ## Testing

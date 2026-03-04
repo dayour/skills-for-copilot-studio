@@ -22,7 +22,7 @@ If the user just wants the agent to answer questions from its knowledge, adding 
 
 1. **Auto-discover the agent directory**:
    ```
-   Glob: src/**/agent.mcs.yml
+   Glob: agents/**/agent.mcs.yml
    ```
    NEVER hardcode an agent name.
 
@@ -64,7 +64,7 @@ If the user just wants the agent to answer questions from its knowledge, adding 
 When using `knowledgeSources` to restrict the search to specific sources:
 
 1. The knowledge source **must already exist** in the agent (add it first with `/add-knowledge`)
-2. Find the knowledge source filename in `src/<agent-name>/knowledge/`
+2. Find the knowledge source filename in `agents/<agent-name>/knowledge/`
 3. Reference it **without the `.mcs.yml` extension**
 
 Example: if the file is `cre3c_agent.topic.MyDocs_abc123.mcs.yml`, the reference is:

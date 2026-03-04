@@ -27,12 +27,12 @@ Agent instructions reference {Global.UserCountry} ← single injection, context-
 
 Before authoring the YAML:
 1. **The M365 Users connector must be configured in Copilot Studio**. Go to the agent's Settings → Connections and add a connection for "Microsoft 365 Users".
-2. **Verify the connection reference name**. Read `src/<AGENT-NAME>/connectionreferences.mcs.yml` and note the exact `logicalName` for the M365 Users connector — you will use this as the `connectionReference` value. It is typically `shared_office365users` but may differ.
+2. **Verify the connection reference name**. Read `agents/<AGENT-NAME>/connectionreferences.mcs.yml` and note the exact `logicalName` for the M365 Users connector — you will use this as the `connectionReference` value. It is typically `shared_office365users` but may differ.
 3. The user's M365 profile must have the `country` field populated in Azure AD. If it is blank, the pattern falls back to `Global.UserCountry = ""` — see the fallback handling in Step 2.
 
 ## Step 1 — Create the Global Variable
 
-Create `src/<AGENT-NAME>/variables/UserCountry.mcs.yml`. Read `settings.mcs.yml` first to get the `schemaName` prefix.
+Create `agents/<AGENT-NAME>/variables/UserCountry.mcs.yml`. Read `settings.mcs.yml` first to get the `schemaName` prefix.
 
 ```yaml
 # Name: UserCountry
@@ -54,7 +54,7 @@ defaultValue: DEFAULT
 
 > **If you are also loading a glossary**, use the combined template at `templates/topics/conversation-init.topic.mcs.yml` instead. It merges both patterns into a single OnActivity topic with one `=IsBlank(Global.UserCountry)` condition.
 
-Create `src/<AGENT-NAME>/topics/conversation-init.topic.mcs.yml`:
+Create `agents/<AGENT-NAME>/topics/conversation-init.topic.mcs.yml`:
 
 ```yaml
 kind: AdaptiveDialog
@@ -94,7 +94,7 @@ beginDialog:
 
 ## Step 3 — Update Agent Instructions
 
-In `src/<AGENT-NAME>/agents/agent.mcs.yml` or `settings.mcs.yml`:
+In `agents/<AGENT-NAME>/agents/agent.mcs.yml` or `settings.mcs.yml`:
 
 ```yaml
 instructions: |

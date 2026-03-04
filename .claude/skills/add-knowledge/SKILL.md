@@ -12,7 +12,7 @@ Add a knowledge source to the agent. Supports **Public Website**, **SharePoint**
 
 1. **Auto-discover the agent directory**:
    ```
-   Glob: src/**/agent.mcs.yml
+   Glob: agents/**/agent.mcs.yml
    ```
    NEVER hardcode an agent name.
 
@@ -67,7 +67,7 @@ Add a knowledge source to the agent. Supports **Public Website**, **SharePoint**
 
 7. **Always include `# Name:` and a description comment** at the top. These are important for identifying the knowledge source.
 
-8. **Save** to `src/<agent-name>/knowledge/<descriptive-name>.knowledge.mcs.yml`
+8. **Save** to `agents/<agent-name>/knowledge/<descriptive-name>.knowledge.mcs.yml`
 
 ## Custom API via OnKnowledgeRequested (YAML-only)
 

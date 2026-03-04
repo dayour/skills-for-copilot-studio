@@ -11,14 +11,14 @@ List all topics in the current agent with their trigger types and details.
 
 1. **Auto-discover the agent directory** — find all agents via:
    ```
-   Glob: src/**/agent.mcs.yml
+   Glob: agents/**/agent.mcs.yml
    ```
    - If multiple agents found, list them and ask which one to inspect.
    - NEVER hardcode an agent name or path.
 
 2. Find all topic files in the discovered agent directory:
    ```
-   Glob: src/<discovered-agent>/topics/*.topic.mcs.yml
+   Glob: agents/<discovered-agent>/topics/*.topic.mcs.yml
    ```
 
 3. For each topic file, read it and extract:
