@@ -115,3 +115,14 @@ For multi-step workflows, the AI will chain agents automatically:
 
 - [SETUP_GUIDE.md](SETUP_GUIDE.md) — Detailed step-by-step setup and testing guide
 - `skills/_reference/SKILL.md` — YAML reference tables (triggers, actions, variables, Power Fx)
+
+## Disclaimer
+
+> **This plugin is an experimental research project and is not an officially supported Microsoft product.** It is provided "as-is" without warranty of any kind. Use at your own risk.
+>
+> - The Copilot Studio YAML schema is subject to change without notice. We'll do our best to keep this tool updated with the latest schema, but allow some processing time.
+> - **Always review and validate all outputs** produced by this tool before pushing changes to your environment. Even if optimized for best-practices adherence, AI-generated YAML may contain errors, hallucinations, or unsupported patterns.
+> - This plugin does not guarantee compatibility with all Copilot Studio features or configurations.
+> - The authors and contributors are not responsible for any issues, data loss, or service disruptions caused by the use of this plugin.
+>
+> By using this plugin, you acknowledge these limitations and accept full responsibility for validating its outputs.
