@@ -31,53 +31,44 @@ Suppose you cloned a Copilot Studio agent to `C:\Users\you\CopilotStudio\MyAgent
 cd C:\Users\you\CopilotStudio\MyAgent1
 claude --plugin-dir C:\Users\you\ClaudeCodeProj\agents-build-agents
 
-# 2. Ask the author agent to create a topic
-@copilot-studio:author Create a FAQ topic that answers questions about our return policy
+# 2. Ask the author agent to design and create an agent
+@copilot-studio:author I need to solve this problem [...], can you please design and implement a Copilot Studio agent that does that, in this folder?
 
-# 3. Validate it
-/copilot-studio:validate topics/ReturnPolicy.topic.mcs.yml
+# 3. Ask the author agent to add a node to it
+@copilot-studio:author Add a question node to the ReturnPolicy topic asking for the order number
 
-# 4. List all topics
-/copilot-studio:list-topics
+# 4. After pushing & publishing in Copilot Studio, test it
+@copilot-studio:test The agent has always failed responding that we have 30-days return window when asked about the return policy. I made some changes and published, can you please test?
 
-# 5. After pushing & publishing in Copilot Studio, test it
-/copilot-studio:chat-with-agent What is your return policy?
+# 5. If something is wrong, troubleshoot
+@copilot-studio:troubleshoot The ReturnPolicy topic isn't triggering when I ask about it, instead I get Conversation Boosting. Why?
 ```
 
 That's it. The plugin auto-discovers your agent's YAML files via `**/agent.mcs.yml`.
 
 ## Three Specialized Agents
 
-The plugin provides three named agents so it doesn't interfere with unrelated projects:
+Always interact with the plugin through its agents. Each agent has the domain context, reference material, and skills it needs to handle your request end-to-end.
 
 | Agent | Use When | Invoke |
 |-------|----------|--------|
-| **author** | Building or modifying YAML files (topics, actions, knowledge, etc.) | `@copilot-studio:author` |
-| **test** | Testing published agents, analyzing failures | `@copilot-studio:test` |
-| **troubleshoot** | Debugging issues — wrong topic triggered, validation errors | `@copilot-studio:troubleshoot` |
+| **author** | Building or modifying YAML files (topics, actions, knowledge, triggers, settings, nodes, child agents, global variables, generative answers, best practices) | `@copilot-studio:author` |
+| **test** | Testing published agents, sending test messages, analyzing results | `@copilot-studio:test` |
+| **troubleshoot** | Debugging issues — wrong topic triggered, validation errors, unexpected behavior | `@copilot-studio:troubleshoot` |
 
-## Skills (Slash Commands)
+> **How it works**: You talk to the agents in natural language. Each agent has internal skills (schema lookup, YAML generation, validation, test execution, etc.) that it uses automatically — you don't need to invoke them yourself.
 
-All skills are individually invocable via `/copilot-studio:<skill-name>`:
+### Chaining agents
 
-| Skill | Description |
-|-------|-------------|
-| `/copilot-studio:new-topic` | Create a new topic |
-| `/copilot-studio:add-node` | Add or modify nodes in a topic |
-| `/copilot-studio:add-action` | Add a connector action (Teams, Outlook, etc.) |
-| `/copilot-studio:validate` | Validate YAML structure |
-| `/copilot-studio:add-knowledge` | Add knowledge source (public website or SharePoint) |
-| `/copilot-studio:list-topics` | List all topics in the agent |
-| `/copilot-studio:list-kinds` | List available YAML kind values |
-| `/copilot-studio:edit-agent` | Edit agent settings or instructions |
-| `/copilot-studio:edit-triggers` | Modify topic triggers |
-| `/copilot-studio:add-child-agent` | Add/configure child agents |
-| `/copilot-studio:add-generative-answers` | Add generative answer nodes |
-| `/copilot-studio:add-global-variable` | Add a global variable |
-| `/copilot-studio:run-tests` | Run tests and analyze failures |
-| `/copilot-studio:chat-with-agent` | Send a test message to a published agent |
-| `/copilot-studio:best-practices` | Best practices (glossary, user context) |
-| `/copilot-studio:lookup-schema` | Query schema definitions |
+For multi-step workflows, Claude will chain agents automatically:
+
+```
+# Claude delegates to author, then to test
+"Create a PTO topic and then test it with 'How do I request time off?'"
+
+# Claude delegates to troubleshoot, then to author
+"The greeting topic has a validation error — fix it"
+```
 
 ## Prerequisites
 
@@ -89,10 +80,10 @@ All skills are individually invocable via `/copilot-studio:<skill-name>`:
 
 1. **Clone** the agent with the Copilot Studio VS Code Extension into any directory
 2. **Start Claude Code** in that directory with the plugin loaded
-3. **Author** changes in YAML using the `@copilot-studio:author` agent or skills
+3. **Author** changes via `@copilot-studio:author`
 4. **Push** changes with the VS Code Extension (creates a draft)
 5. **Publish** in Copilot Studio UI (makes changes live)
-6. **Test** with `/copilot-studio:chat-with-agent` or `/copilot-studio:run-tests`
+6. **Test** via `@copilot-studio:test`
 
 ## Plugin Management
 
@@ -119,5 +110,4 @@ claude plugin uninstall copilot-studio
 ## Key Resources
 
 - [SETUP_GUIDE.md](SETUP_GUIDE.md) — Detailed step-by-step setup and testing guide
-- `skills/_project-context/SKILL.md` — Project conventions
 - `skills/_reference/SKILL.md` — YAML reference tables (triggers, actions, variables, Power Fx)
