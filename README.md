@@ -1,6 +1,8 @@
-# Copilot Studio Plugin for Claude Code
+# Skills for Copilot Studio
 
-A **Claude Code plugin** for Microsoft Copilot Studio YAML authoring. Create, edit, validate, and test Copilot Studio agents using YAML files — from any project directory.
+An **AI coding agent plugin** for Microsoft Copilot Studio YAML authoring. Create, edit, validate, and test Copilot Studio agents using YAML files — from any project directory.
+
+Compatible with **Claude Code** and **GitHub Copilot CLI** (any agent that supports the plugin format).
 
 ## Installation
 
@@ -31,9 +33,8 @@ Once installed, the plugin is available globally — no need to `cd` into this r
 Suppose you cloned a Copilot Studio agent to `C:\Users\you\CopilotStudio\MyAgent1`:
 
 ```bash
-# 1. Start Claude Code in your agent's directory
+# 1. Start your AI coding agent in your agent's directory
 cd C:\Users\you\CopilotStudio\MyAgent1
-claude --plugin-dir C:\Users\you\ClaudeCodeProj\agents-build-agents
 
 # 2. Ask the author agent to design and create an agent
 @copilot-studio:author I need to solve this problem [...], can you please design and implement a Copilot Studio agent that does that, in this folder?
@@ -64,25 +65,25 @@ Always interact with the plugin through its agents. Each agent has the domain co
 
 ### Chaining agents
 
-For multi-step workflows, Claude will chain agents automatically:
+For multi-step workflows, the AI will chain agents automatically:
 
 ```
-# Claude delegates to author, then to test
+# Delegates to author, then to test
 "Create a PTO topic and then test it with 'How do I request time off?'"
 
-# Claude delegates to troubleshoot, then to author
+# Delegates to troubleshoot, then to author
 "The greeting topic has a validation error — fix it"
 ```
 
 ## Prerequisites
 
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed
+- An AI coding agent CLI that supports plugins ([Claude Code](https://docs.anthropic.com/en/docs/claude-code) or [GitHub Copilot CLI](https://docs.github.com/en/copilot))
 - [VS Code](https://code.visualstudio.com/) with the [Copilot Studio Extension](https://github.com/microsoft/vscode-copilotstudio)
 
 ## Workflow
 
 1. **Clone** the agent with the Copilot Studio VS Code Extension into any directory
-2. **Start Claude Code** in that directory with the plugin loaded
+2. **Start** your AI coding agent in that directory with the plugin loaded
 3. **Author** changes via `@copilot-studio:author`
 4. **Push** changes with the VS Code Extension (creates a draft)
 5. **Publish** in Copilot Studio UI (makes changes live)
@@ -92,22 +93,22 @@ For multi-step workflows, Claude will chain agents automatically:
 
 ```bash
 # Install persistently (user-wide)
-claude plugin install /path/to/copilot-studio --scope user
+/plugin install copilot-studio@microsoft/skills-for-copilot-studio --scope user
 
 # Install for a specific project (shared via version control)
-claude plugin install /path/to/copilot-studio --scope project
+/plugin install copilot-studio@microsoft/skills-for-copilot-studio --scope project
 
 # Check installed plugins
-claude plugin list
+/plugin list
 
 # Temporarily disable without uninstalling
-claude plugin disable copilot-studio
+/plugin disable copilot-studio
 
 # Re-enable
-claude plugin enable copilot-studio
+/plugin enable copilot-studio
 
 # Uninstall
-claude plugin uninstall copilot-studio
+/plugin uninstall copilot-studio
 ```
 
 ## Key Resources
