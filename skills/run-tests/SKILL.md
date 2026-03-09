@@ -1,5 +1,5 @@
 ---
-description: Run tests against a published Copilot Studio agent and analyze results. Use when the user asks to test the agent, run tests, validate published changes, or check if the agent works correctly. The agent must have been pushed and published in Copilot Studio first.
+description: Run or analyze tests for a published Copilot Studio agent. Two modes — run a batch test suite via the Copilot Studio Kit (Dataverse API), or import and analyze results from Copilot Studio's built-in evaluations. Not for sending a single test message — use /chat-with-agent for that instead.
 allowed-tools: Bash(node *run-tests.js *), Bash(npm install *), Read, Write, Glob, Grep, Edit
 context: fork
 agent: test
@@ -7,50 +7,43 @@ agent: test
 
 # Run Tests
 
-Run Copilot Studio agent tests, download results, and analyze failures to propose YAML fixes. Supports two modes:
-- **Automatic**: Run tests via Dataverse API (requires Azure app registration and credentials)
-- **Manual**: User runs tests in Copilot Studio UI and shares results with the AI agent for analysis
+Test a published Copilot Studio agent and analyze results. Supports two modes:
 
-## Prerequisites
+| Mode | How it works | Requires |
+|------|-------------|----------|
+| **Copilot Studio Kit** | Runs a batch test suite via the Dataverse API using the [Power CAT Copilot Studio Kit](https://github.com/microsoft/Power-CAT-Copilot-Studio-Kit) (open-source, by the Power CAT team). Produces pass/fail results with latencies. | Kit installed in the environment + Azure App Registration with Dataverse permissions |
+| **Analyze evaluations** | User runs evaluations in the Copilot Studio UI, exports results as CSV, and shares the file for analysis. No additional setup required. | Agent published + evaluations run in Copilot Studio UI |
 
-The user must have:
-1. **Published** their agent in the Copilot Studio UI at [copilotstudio.microsoft.com](https://copilotstudio.microsoft.com). Note: pushing with the VS Code Extension only creates a draft — drafts are testable in the Copilot Studio Test tab but not reachable by this skill. The user must publish after pushing.
-2. **Created a test set** in Copilot Studio (Tests tab in the UI)
+## Phase 0: Choose Mode
 
-## Instructions
+If the user's intent is clear, skip straight to the right phase:
+- User says "run tests", "run the test suite" → **Phase 1A** (Kit)
+- User shares a CSV file, says "analyze these results", "here are my eval results" → **Phase 1B** (Analyze evaluations)
 
-### Phase 0: Detect Mode
-
-1. **Try to read `tests/settings.json`** (relative to the user's project CWD).
-
-2. **Check for the `mode` field**:
-
-   - If `mode` is `"automatic"`: proceed to **Phase 1** (Configure Settings)
-   - If `mode` is `"manual"`: skip to **Phase 2M** (Run Tests — Manual)
-   - If `mode` is missing or the file doesn't exist: **ask the user to choose** using AskUserQuestion:
-
-     > **How would you like to run tests?**
-     >
-     > - **Automatic** — Tests run via Dataverse API. Requires an Azure app registration, environment URL, tenant ID, and client ID. Best for repeated/CI testing.
-     > - **Manual** — You run tests in the Copilot Studio UI and share results here. No Azure setup needed. Best for quick one-off testing.
-
-3. **Persist the choice** to `tests/settings.json`:
-   - If the file already exists with other settings (e.g., `dataverse`, `testRun`), add/update only the `mode` field, preserving existing values.
-   - If the file doesn't exist, create it with just the mode:
-     - For automatic: use the full template from `${CLAUDE_SKILL_DIR}/../../tests/settings-example.json` (includes `mode`, `dataverse`, `testRun`)
-     - For manual: write `{ "mode": "manual" }`
-
-4. **Mode switching**: If at any point the user asks to "switch to manual mode" or "switch to automatic mode", update the `mode` field in `tests/settings.json` and restart from the appropriate phase.
+If ambiguous (e.g., "test the agent"), **ask the user** which mode they want.
 
 ---
 
-### Phase 1: Configure Settings (Automatic mode only)
+## Mode A: Copilot Studio Kit
 
-Only runs when `mode` = `"automatic"`. Skip this phase entirely for manual mode.
+### Prerequisites
 
-1. **Read `tests/settings.json`** and check for missing or placeholder values (containing `YOUR_`).
+The user must have:
+1. The **[Copilot Studio Kit](https://github.com/microsoft/Power-CAT-Copilot-Studio-Kit)** installed in their Power Platform environment
+2. **Published** their agent in the Copilot Studio UI
+3. **Created a test set** in the Copilot Studio Kit
+4. An **Azure App Registration** with Dataverse permissions
 
-2. **If values are missing**, ask the user for each missing value. Explain where to find each one:
+### Phase 1A: Configure Settings
+
+1. **Read `tests/settings.json`** (relative to the user's project CWD) and check for missing or placeholder values (containing `YOUR_`).
+
+2. **If the file doesn't exist**, create it from the template:
+   ```bash
+   cp ${CLAUDE_SKILL_DIR}/../../tests/settings-example.json ./tests/settings.json
+   ```
+
+3. **If values are missing**, ask the user for each missing value. Explain where to find each one:
 
    - **Environment URL** (`dataverse.environmentUrl`): "What is your Dataverse environment URL? Find it in Power Platform admin center or Copilot Studio > Settings > Session Details. It looks like `https://orgXXXXXX.crm.dynamics.com`"
    - **Tenant ID** (`dataverse.tenantId`): "What is your Azure tenant ID? Find it in Azure Portal > Microsoft Entra ID > Overview. It's a GUID like `c87f36f7-fc65-453c-9019-0d724f21bc42`"
@@ -60,10 +53,9 @@ Only runs when `mode` = `"automatic"`. Skip this phase entirely for manual mode.
 
    Ask for ALL missing values at once (don't ask one at a time).
 
-3. **Write `tests/settings.json`** with the collected values:
+4. **Write `tests/settings.json`** with the collected values:
    ```json
    {
-     "mode": "automatic",
      "dataverse": {
        "environmentUrl": "<value>",
        "tenantId": "<value>",
@@ -76,13 +68,9 @@ Only runs when `mode` = `"automatic"`. Skip this phase entirely for manual mode.
    }
    ```
 
-4. If all values are already configured and valid, proceed to Phase 2A.
+5. If all values are already configured and valid, proceed to Phase 2A.
 
----
-
-### Phase 2A: Run Tests — Automatic
-
-Only runs when `mode` = `"automatic"`.
+### Phase 2A: Run Tests
 
 1. **Ensure `tests/package.json` exists** in the user's project. If not, copy it:
    ```bash
@@ -123,56 +111,13 @@ Only runs when `mode` = `"automatic"`.
 
 7. **Read the final output** to get the success rate and CSV filename.
 
-8. Proceed to **Phase 3**.
+8. Proceed to **Phase 3A**.
 
----
+### Phase 3A: Analyze Kit Results
 
-### Phase 2M: Run Tests — Manual
+1. **Get the results**: `Glob: tests/test-results-*.csv` — read the most recent CSV file (newest by modification time).
 
-Only runs when `mode` = `"manual"`.
-
-1. **Provide step-by-step instructions** to the user:
-
-   > **Run tests in Copilot Studio:**
-   >
-   > 1. Open [Copilot Studio](https://copilotstudio.microsoft.com)
-   > 2. Navigate to your agent
-   > 3. Go to the **Tests** tab
-   > 4. Select your test set and click **Run**
-   > 5. Wait for all tests to complete
-   >
-   > **Then share your results with me.** You can:
-   > - **Export CSV**: Click the export/download button in the Tests tab and share the file path
-   > - **Copy & paste**: Select the results table and paste it here
-   > - **Describe verbally**: Tell me which tests failed and what the errors were
-
-2. **Wait for the user to provide results.**
-
-3. **Parse the results** based on the format provided:
-
-   - **CSV file path**: Read the file. Handle column name variations — Copilot Studio exports may use different column headers than `run-tests.js` output. Map columns by matching semantically (e.g., "Utterance" / "Test Utterance", "Expected" / "Expected Response", "Actual" / "Response", "Status" / "Result").
-
-   - **Pasted text/table**: Parse the tabular data. Identify columns by header names or position. Handle markdown tables, tab-separated, or comma-separated formats.
-
-   - **Verbal description**: Ask targeted clarifying questions to understand the failures:
-     - Which tests failed?
-     - What was the test utterance / user message?
-     - What was expected vs. what the agent actually responded?
-     - What type of test was it (topic match, response match, generative answers)?
-
-4. Proceed to **Phase 3**.
-
----
-
-### Phase 3: Analyze Results
-
-Works identically regardless of mode — only the data source differs.
-
-1. **Get the results data**:
-   - **Automatic mode**: `Glob: tests/test-results-*.csv` — read the most recent CSV file (newest by modification time).
-   - **Manual mode**: Use the parsed results from Phase 2M.
-
-2. **Parse the CSV columns** (for automatic mode or CSV-based manual results):
+2. **Parse the CSV columns**:
    | Column | Meaning |
    |--------|---------|
    | Test Utterance | The user message that was tested |
@@ -184,17 +129,55 @@ Works identically regardless of mode — only the data source differs.
    | Result Reason | Why the test passed or failed |
 
 3. **Focus on failed tests** (Result = `Failed` or `Error`). For each failure, analyze:
-   - **Test Type = Topic Match**: The wrong topic was triggered, or no topic matched. Check trigger phrases and model descriptions in the relevant topics.
-   - **Test Type = Response Match**: The response didn't match the expected response. Check the topic's `SendActivity` messages, instructions, or generative answer configuration.
-   - **Test Type = Generative Answers**: The generative answer was incorrect or missing. Check knowledge sources, `SearchAndSummarizeContent` configuration, and agent instructions.
-   - **Test Type = Plan Validation**: The orchestrator's plan was wrong. Check topic descriptions, model descriptions, and agent-level instructions.
-   - **Test Type = Multi-turn**: A multi-turn conversation failed at some step. Check topic flow, variable handling, and conditions.
+   - **Test Type = Topic Match**: The wrong topic was triggered, or no topic matched. Check trigger phrases and model descriptions.
+   - **Test Type = Response Match**: The response didn't match expected. Check `SendActivity` messages, instructions, or generative answer config.
+   - **Test Type = Generative Answers**: The generative answer was incorrect or missing. Check knowledge sources, `SearchAndSummarizeContent`, and agent instructions.
+   - **Test Type = Plan Validation**: The orchestrator's plan was wrong. Check topic descriptions and agent-level instructions.
+   - **Test Type = Multi-turn**: A multi-turn conversation failed. Check topic flow, variable handling, and conditions.
+
+4. Proceed to **Phase 4** (Propose Fixes).
 
 ---
 
-### Phase 4: Propose Fixes
+## Mode B: Analyze Copilot Studio Evaluations
 
-Mode-agnostic — works from analyzed failure data regardless of source.
+### Phase 1B: Get Results
+
+1. **Ask the user for the CSV file path** if not already provided. The file is typically exported from Copilot Studio's Evaluate tab and named `Evaluate <agent name> <date>.csv` in their Downloads folder.
+
+2. **Read the CSV file**. The in-product evaluation CSV has these columns:
+
+   | Column | Meaning |
+   |--------|---------|
+   | `question` | The test utterance |
+   | `expectedResponse` | Expected response (may be empty) |
+   | `actualResponse` | What the agent responded |
+   | `testMethodType_1` | Eval method (e.g., `GeneralQuality`) |
+   | `result_1` | `Pass` or `Fail` |
+   | `passingScore_1` | Score threshold (may be empty) |
+   | `explanation_1` | Why it passed/failed (e.g., "Seems relevant; Seems incomplete; Knowledge sources not cited") |
+
+   The `_1` suffix indicates the first eval method. There may be additional methods (`_2`, `_3`, etc.) with the same column pattern.
+
+3. Proceed to **Phase 3B**.
+
+### Phase 3B: Analyze Evaluation Results
+
+1. **Focus on failed evaluations** (`result_1` = `Fail`, or any `result_N` = `Fail`).
+
+2. For each failure, use the `explanation` column to understand the issue:
+   - **"Question not answered"** — The agent couldn't handle the question. Check if there's a matching topic or knowledge source.
+   - **"Knowledge sources not cited"** — The agent responded but didn't cite sources. Check knowledge source configuration and `SearchAndSummarizeContent` nodes.
+   - **"Seems incomplete"** — The response was partial. Check topic flow for early exits, missing branches, or incomplete `SendActivity` messages.
+   - **Error messages in `actualResponse`** (e.g., `GenAIToolPlannerRateLimitReached`) — These are runtime errors, not authoring issues. Flag them to the user as transient failures to retry.
+
+3. Proceed to **Phase 4** (Propose Fixes).
+
+---
+
+## Phase 4: Propose Fixes
+
+Shared by both modes.
 
 1. **For each failure, identify the relevant YAML file(s)**:
    - Auto-discover the agent: `Glob: **/agent.mcs.yml`
@@ -213,7 +196,7 @@ Mode-agnostic — works from analyzed failure data regardless of source.
 
 4. **Apply accepted changes** using the Edit tool. After applying, remind the user to push and publish again before re-running tests.
 
-## Test Result Codes Reference
+## Test Result Codes Reference (Kit mode only)
 
 ```
 Result: 1=Success, 2=Failed, 3=Unknown, 4=Error, 5=Pending
