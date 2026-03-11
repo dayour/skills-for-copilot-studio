@@ -7,10 +7,10 @@ const config: Config = {
   tagline: 'Author, test, and troubleshoot Copilot Studio agents from your terminal',
   favicon: 'img/favicon.ico',
 
-  url: 'https://microsoft.github.io',
+  url: 'https://dayour.github.io',
   baseUrl: '/skills-for-copilot-studio/',
 
-  organizationName: 'microsoft',
+  organizationName: 'dayour',
   projectName: 'skills-for-copilot-studio',
 
   onBrokenLinks: 'warn',
