@@ -20,12 +20,14 @@ The test agent supports three distinct testing methods:
 | Approach | Skill | How It Works | Requires |
 |----------|-------|-------------|----------|
 | **Point-test** | `/copilot-studio:chat-with-agent` | Sends a single utterance directly to the published agent via the Copilot Studio Client SDK and returns the full response. Best for quick checks and multi-turn conversations. | App Registration with `CopilotStudio.Copilots.Invoke` permission |
+| **DirectLine chat** | `/copilot-studio:directline-chat` | Sends a single utterance via the DirectLine v3 REST API. No App Registration needed when using a token endpoint. Supports auth/sign-in flows. | Token endpoint URL or DirectLine secret |
 | **Batch test suite** | `/copilot-studio:run-tests` (Kit mode) | Runs pre-defined test sets with expected responses via the Dataverse API using the [Power CAT Copilot Studio Kit](https://github.com/microsoft/Power-CAT-Copilot-Studio-Kit). Produces pass/fail results with latencies. | Copilot Studio Kit installed + App Registration with Dataverse permissions |
 | **Analyze evaluations** | `/copilot-studio:run-tests` (eval mode) | Analyzes evaluation results exported as CSV from the Copilot Studio UI. Proposes fixes for failures. | Agent published + evaluations run in Copilot Studio UI |
 
 ## When to Use Each
 
 - User provides a specific utterance (e.g., "test 'what's the PTO policy'") -- point-test
+- User mentions "token endpoint" or "DirectLine" -- DirectLine chat
 - User says "run the test suite" or "run tests" -- batch test suite
 - User shares a CSV or says "analyze these results" -- evaluation analysis
 - User says "validate the YAML" -- validation (delegates to troubleshoot agent)
@@ -33,6 +35,7 @@ The test agent supports three distinct testing methods:
 ## Agent Connection
 
 - **Point-test** (`/chat-with-agent`): Connection details are auto-discovered from the VS Code extension's `.mcs/conn.json` and `settings.mcs.yml`. The only value the user must provide is their App Registration Client ID.
+- **DirectLine chat** (`/directline-chat`): Requires either a Copilot Studio token endpoint URL or a DirectLine secret. No App Registration needed for token endpoint mode.
 - **Batch tests** (`/run-tests`): Requires a separate `tests/settings.json` with the Dataverse environment URL, tenant ID, client ID, agent configuration ID, and test set ID.
 
 ## Examples

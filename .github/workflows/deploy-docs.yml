@@ -19,12 +19,43 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: docs/site/package-lock.json
+
+      - name: Generate changelog
+        run: |
+          cat > docs/src/changelog.md << 'HEADER'
+          ---
+          sidebar_position: 100
+          title: Changelog
+          ---
+
+          # Changelog
+
+          Auto-generated from git history on each site build.
+
+          HEADER
+
+          prev_date=""
+          git log --format="%H %as %s" --no-merges -50 | while IFS= read -r line; do
+            hash=$(echo "$line" | cut -d' ' -f1)
+            short=$(echo "$hash" | cut -c1-7)
+            date=$(echo "$line" | cut -d' ' -f2)
+            msg=$(echo "$line" | cut -d' ' -f3-)
+            if [ "$date" != "$prev_date" ]; then
+              echo ""
+              echo "## $date"
+              echo ""
+              prev_date="$date"
+            fi
+            echo "- [\`$short\`](https://github.com/dayour/skills-for-copilot-studio/commit/$hash) $msg"
+          done >> docs/src/changelog.md
 
       - name: Install dependencies
         working-directory: docs/site

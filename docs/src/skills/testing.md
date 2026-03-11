@@ -68,3 +68,31 @@ Analyzes evaluation results exported as CSV from the Copilot Studio UI.
 - Failure analysis with root causes
 - Proposed YAML fixes
 - Recommendations for improving agent quality
+
+## directline-chat
+
+Sends a single utterance to a bot via the DirectLine v3 REST API and returns the full response. Works with any bot reachable via DirectLine -- no Azure App Registration required when using a token endpoint.
+
+**Usage:**
+```
+/copilot-studio:test Send "Hello" using my token endpoint
+```
+
+**Connection Modes:**
+
+| Mode | When to use | What you need |
+|------|-------------|--------------|
+| **Token endpoint** | Agent published in Copilot Studio with Direct Line channel | Copilot Studio token endpoint URL |
+| **DirectLine secret** | Azure Bot Service bot with DirectLine channel enabled | DirectLine secret from Azure Portal |
+
+**How it works:**
+1. Asks which connection mode to use (token endpoint or DirectLine secret)
+2. Acquires a DirectLine token
+3. Starts a conversation via DirectLine v3
+4. Sends the utterance as an activity
+5. Polls for bot responses
+6. Returns the full response text
+
+**Auth support:** Detects OAuthCard sign-in prompts and guides the user through the authentication flow.
+
+**Multi-turn support:** Reuses conversation context for follow-up messages within the same session.
