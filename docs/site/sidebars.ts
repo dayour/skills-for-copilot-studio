@@ -47,6 +47,7 @@ const sidebars: SidebarsConfig = {
       ],
     },
     'troubleshooting',
+    'cat-resources',
     'changelog',
   ],
 };
