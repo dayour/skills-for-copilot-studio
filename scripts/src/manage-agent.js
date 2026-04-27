@@ -30,7 +30,7 @@ const { randomUUID } = require("crypto");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
-const { log, die } = require("./shared-utils");
+const { log, die, sleep } = require("./shared-utils");
 const {
   VSCODE_CLIENT_ID,
   getIslandResourceId,
@@ -742,16 +742,68 @@ function buildSyncRequest(args, tokens) {
 // Commands
 // ---------------------------------------------------------------------------
 
-function assertLspSuccess(method, result) {
+const LSP_TRANSIENT_SSL_MAX_ATTEMPTS = 3;
+const LSP_TRANSIENT_SSL_RETRY_DELAY_MS = 3000;
+
+function isTransientSslError(message) {
+  return /ssl connection could not be established/i.test(message || "");
+}
+
+function isLspErrorCode(code) {
+  return code < 0 || code >= 400;
+}
+
+function buildLspError(method, result) {
   if (
     result &&
     typeof result === "object" &&
     typeof result.code === "number" &&
-    result.code !== 0
+    isLspErrorCode(result.code)
   ) {
     const message = result.message || "LSP request failed";
-    throw new Error(`${method} failed: ${message} (code ${result.code})`);
+    const retryHint = isTransientSslError(message)
+      ? " This is sometimes transient; retry the command if it continues after automatic retries."
+      : "";
+    return new Error(`${method} failed: ${message} (code ${result.code}).${retryHint}`);
   }
+  return null;
+}
+
+async function sendCustomRequestWithRetries(client, method, request, options = {}) {
+  const maxAttempts = options.maxAttempts || LSP_TRANSIENT_SSL_MAX_ATTEMPTS;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const result = await client.sendCustomRequest(method, request);
+      const error = buildLspError(method, result);
+      if (!error) return result;
+
+      if (!isTransientSslError(error.message) || attempt === maxAttempts) {
+        throw error;
+      }
+    } catch (error) {
+      if (error.message && error.message.startsWith(`${method} failed:`)) {
+        throw error;
+      }
+      if (isTransientSslError(error.message) && attempt === maxAttempts) {
+        throw new Error(
+          `${method} failed: ${error.message}. ` +
+            "This is sometimes transient; retry the command if it continues after automatic retries."
+        );
+      }
+      if (!isTransientSslError(error.message) || attempt === maxAttempts) {
+        throw error;
+      }
+    }
+
+    log(
+      `[retry] ${method} failed with a transient SSL error ` +
+        `(attempt ${attempt}/${maxAttempts}). Retrying in ${LSP_TRANSIENT_SSL_RETRY_DELAY_MS / 1000}s...`
+    );
+    await sleep(LSP_TRANSIENT_SSL_RETRY_DELAY_MS);
+  }
+
+  throw new Error(`${method} failed after ${maxAttempts} attempts`);
 }
 
 async function cmdAuth(args) {
@@ -867,8 +919,7 @@ async function cmdWithLsp(args, method) {
 
     const request = buildSyncRequest(args, tokens);
     log(`Calling ${method}...`);
-    const result = await client.sendCustomRequest(method, request);
-    assertLspSuccess(method, result);
+    const result = await sendCustomRequestWithRetries(client, method, request);
 
     process.stdout.write(
       JSON.stringify({ status: "ok", method, result }, null, 2) + "\n"
@@ -1359,11 +1410,11 @@ async function cmdClone(args) {
     };
 
     log("Calling powerplatformls/cloneAgent...");
-    const result = await client.sendCustomRequest(
+    const result = await sendCustomRequestWithRetries(
+      client,
       "powerplatformls/cloneAgent",
       request
     );
-    assertLspSuccess("powerplatformls/cloneAgent", result);
 
     process.stdout.write(
       JSON.stringify({ status: "ok", method: "powerplatformls/cloneAgent", result }, null, 2) + "\n"
