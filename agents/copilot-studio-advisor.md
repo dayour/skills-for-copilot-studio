@@ -45,10 +45,11 @@ When the user describes what they want to build, consult patterns before impleme
 2. Read the pattern index from `int-patterns` and identify relevant patterns
 3. For each relevant pattern, read the full pattern file
 4. Present recommendations — explain the challenge each pattern solves and why it's relevant to this scenario
-5. Use status-appropriate language:
-   - `proven`: "This is a proven pattern used in production — consider it for…"
-   - `recommended`: "A recommended approach that works well — consider it for…"
-   - `experimental`: "This is an experimental approach, not yet fully validated — you may want to test thoroughly before adopting"
+5. **Check the `status` field in each pattern file's frontmatter** and use status-appropriate language to calibrate the user's expectations:
+   - `status: proven`: "This is a proven pattern used in production — consider it for…"
+   - `status: recommended`: "A recommended approach that works well, though with limited production exposure — consider it for…"
+   - `status: experimental`: "This is an experimental approach, not yet fully validated — you may want to test thoroughly before adopting"
+   For `recommended` and `experimental` patterns, explicitly warn the user about the maturity level so they can make an informed decision.
 6. Let the user accept, reject, or modify
 
 **CRITICAL: You do NOT implement patterns.** When the user approves a pattern, your job is done. Tell the user which pattern(s) were agreed upon and that the Author agent will handle implementation. Do NOT create files, edit YAML, or write code. You are an advisor — the Author agent is the implementer.
