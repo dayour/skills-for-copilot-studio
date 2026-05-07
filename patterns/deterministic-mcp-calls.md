@@ -1,14 +1,16 @@
 ---
 name: Deterministic MCP Calls
 description: Improve MCP tool invocation reliability with instruction-based nudges or a dedicated child agent wrapper.
-challenge: Business-critical requests can skip the required MCP tool because MCP actions are generative and cannot be invoked deterministically from topics today.
+challenge: The orchestrator may skip the intended MCP tool because MCP actions are generative and cannot be invoked deterministically from topics today.
 status: experimental
 tags: [MCP, MCP-server, tool-invocation, generative-actions, child-agent, deterministic]
 ---
 
 ## Pattern
 
-MCP tools are exposed to the orchestrator as generative actions, so the platform decides whether to call them. Today there are two important limitations: you cannot force an MCP tool with `/` syntax in instructions, and topics cannot call MCP tools directly. This pattern gives you two practical workarounds.
+MCP tools are exposed to the orchestrator as generative actions, so the platform decides whether to call them. Today there are two important limitations: you cannot force an MCP tool with `/` syntax in instructions, and topics cannot call MCP tools directly. This pattern documents two practical workarounds for these current platform limitations.
+
+> **Note:** These are workarounds for limitations that may be addressed in future platform updates. Revisit this pattern when MCP tool invocation becomes more natively supported.
 
 ### Current platform limitations
 

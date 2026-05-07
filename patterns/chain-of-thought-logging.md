@@ -12,9 +12,9 @@ This pattern creates a lightweight logging topic that turns orchestration progre
 
 ### How it works
 
-The orchestrator reads an input variable's `description` to decide what data to supply, so the description doubles as an instruction. The logger topic accepts a CoT summary through `AutomaticTaskInput`, then immediately sends it as a user-visible trace message.
+The topic declares an `AutomaticTaskInput` variable with `shouldPromptUser: false`. The orchestrator reads the variable's `description` field to understand what data to fill in — for example, a high-level summary of the step it just completed — and populates the variable automatically. The topic then sends that value as an italicized `_Thinking: ..._` chat message.
 
-For non-reasoning models such as GPT-4.1 and GPT-5 Chat, this technique surfaces reasoning that would otherwise stay hidden. For reasoning models, the orchestrator narrates a safe high-level summary rather than exposing raw internal chain-of-thought.
+This works across both reasoning and non-reasoning models. The orchestrator narrates its own actions (which tool it called, which agent it routed to, what it found) regardless of the underlying model's architecture. For reasoning models, the orchestrator provides a safe high-level summary rather than exposing raw internal chain-of-thought.
 
 > **Tested with:** GPT-4.1, GPT-5 Chat, GPT-5 Auto, GPT-5 Reasoning, Claude Sonnet, Claude Opus.
 
@@ -30,7 +30,7 @@ Agent: Here's the latest on Project Alpha: <final answer>
 
 ### Instruction to add
 
-In the Copilot Studio instructions editor, reference the topic via the `/` dropdown so the topic name resolves correctly:
+Add the following to the agent instructions. In the Copilot Studio UI editor, type `/` to auto-complete the topic name. If editing YAML directly, use the exact topic name as written:
 
 ```
 After every tool, topic, or step you take (except when you are already

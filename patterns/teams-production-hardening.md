@@ -12,53 +12,6 @@ This pattern is a coordinated framework of eight production patterns for Copilot
 
 > Treat this as an end-to-end framework, not a pick-and-mix checklist.
 
-### Framework overview
-
-```text
-                  ┌──────────────────────────────────────────┐
-                  │  User opens agent in Teams / M365 Copilot │
-                  └──────────────────┬───────────────────────┘
-                                     │
-          ┌──────────────────────────┼──────────────────────────┐
-          │                          │                          │
-┌─────────▼─────────┐    ┌───────────▼────────────┐   ┌─────────▼──────────┐
-│ 1. OnInstallation │    │ 4. SetContextVariables │   │ 8. Suggested       │
-│    Update         │    │    (fires if blank)    │   │    prompts (config)│
-│    → ConvStart    │    │    → Global.UserContext│   └────────────────────┘
-└─────────┬─────────┘    └────────────────────────┘
-          │                          ▲
-          ▼                          │
-   ConversationStart ─────────────> reads Global.UserContext
-
-   ┌───────────────────────────────────────────────┐
-   │ 2. OnInactivity (12h) ──► clear vars          │
-   │                           set Global.Inactive │
-   │                                               │
-   │ 3. OnActivity (Inactive=true) ──► notify +    │
-   │                                    "Start over"│
-   └─────────────────────┬─────────────────────────┘
-                         │
-                         ▼
-         ┌───────────────────────────────────┐
-         │ 6. Start Over (Adaptive Card)     │
-         │    Yes  ──► 5. Reset Conversation │
-         │    No   ──► continue              │
-         │    Diagnostics panel inline       │
-         └───────────────┬───────────────────┘
-                         ▼
-         ┌───────────────────────────────────┐
-         │ 5. Reset Conversation             │
-         │    Clear scoped vars + history    │
-         │    Redirect to ConversationStart  │
-         └───────────────────────────────────┘
-
-   ┌───────────────────────────────────────────────┐
-   │ 7. OnError (Adaptive Card)                    │
-   │    Error details + diagnostics + "Start over" │
-   │    LogCustomTelemetryEvent                    │
-   └───────────────────────────────────────────────┘
-```
-
 ### Shared variables
 
 | Variable | Set by | Read by | Purpose |

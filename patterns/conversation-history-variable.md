@@ -14,7 +14,7 @@ This pattern asks the orchestrator to reconstruct the current conversation and p
 
 ### How it works
 
-The orchestrator reads an input variable's `description` to decide what to populate, so the description doubles as an instruction. In this pattern, the description tells the model to fill `ConversationHistory` with the full conversation in a specific format.
+The topic declares an `AutomaticTaskInput` variable named `ConversationHistory` with `shouldPromptUser: false`. The orchestrator reads the variable's `description` field to understand what content and format to fill in. In this pattern, the description instructs the orchestrator to reconstruct the entire conversation and write it into the variable using a specific turn-by-turn format. The topic then uses the populated variable — for example, sending it in a message, storing it, or passing it to a connector.
 
 ### Variations
 

@@ -75,7 +75,6 @@ beginDialog:
 ## Pitfalls
 
 - This pattern adds an extra user-facing message per knowledge request; confirm that the UX trade-off is acceptable.
-- Do **not** use an AI Builder prompt to generate the hold message, because that adds several seconds of real latency before the knowledge search even starts.
 - Keep the hold message short; the goal is reassurance, not another full response.
 - If you want channel-specific behavior, wrap `SendActivity` in a `ConditionGroup` that checks `System.Activity.ChannelId`.
 
