@@ -14,6 +14,31 @@ claude --plugin-dir /path/to/skills-for-copilot-studio
 claude plugin install /path/to/skills-for-copilot-studio --scope user
 ```
 
+## Release workflow
+
+The plugin follows a **weekly release branch** cadence. Release branches are merged to `main` on Wednesdays, and a new branch is created every Thursday automatically via GitHub Actions.
+
+### How it works
+
+1. **Every Thursday at 09:00 UTC**, the [`new-release`](.github/workflows/new-release.yml) workflow runs:
+   - Creates a `release/YYYY-WNN` branch from `main` (e.g., `release/2026-W16`)
+   - Bumps the patch version in `plugin.json` and `marketplace.json`
+   - Commits and pushes the branch
+
+2. **During the week**, fork feature branches from the release branch and PR back into it:
+   ```bash
+   git checkout release/2026-W16
+   git checkout -b feature/my-change
+   # ... make changes ...
+   # PR into release/2026-W16
+   ```
+
+3. **When ready to ship**, open a PR from `release/YYYY-WNN` into `main`.
+
+### Manual trigger
+
+You can also create a release branch on demand from the [Actions tab](../../actions/workflows/new-release.yml) using **Run workflow**. Optionally provide a version override (e.g., `1.1.0` for a minor bump).
+
 ## Rebuilding bundled scripts
 
 The plugin includes bundled Node.js scripts (schema lookup, chat-with-agent) built with [esbuild](https://esbuild.github.io/). Source is in `scripts/src/`, bundles are in `scripts/`.
@@ -51,11 +76,15 @@ npm run build
 ```
 .claude-plugin/          # Plugin manifest and marketplace config
 .github/plugin/          # GitHub Copilot Plugin manifest to speedup discovery
-agents/                  # Sub-agent definitions (author, test, troubleshoot)
-evals/                   # Skill eval framework (harness, report, fixtures)
-  skills/                # Eval definitions per skill (<name>.json)
+agents/                  # Sub-agent definitions (advisor, author, manage, test)
+evals/                   # Scenario-based eval framework (harness, report, fixtures)
+  scenarios/             # Eval definitions per scenario (<name>.json)
+  hooks/                 # Eval-only hooks (skill tracing via PreToolUse)
 hooks/                   # Session hooks (agent routing)
 skills/                  # Skill definitions (entry points + internal skills)
+  int-patterns/          # Internal skill indexing the pattern library
+  ...                    # Other skills (add-knowledge, new-topic, etc.)
+patterns/                # Reusable design patterns (JIT glossary, orchestrator variables, etc.)
 scripts/                 # Bundled tools (schema lookup, chat-with-agent)
   src/                   # Source code
 reference/               # Copilot Studio YAML schema
@@ -63,46 +92,79 @@ templates/               # YAML templates for common patterns
 tests/                   # Test runner for Copilot Studio Kit integration
 ```
 
-## Skill evals
+## Contributing to the pattern library
 
-The plugin includes a testing framework for validating that skills produce correct output. These are **unit tests** — each eval explicitly invokes a specific skill and checks the output with deterministic validators (schema validation, YAML structure, content assertions).
+The `patterns/` directory at the repo root contains reusable design patterns for Copilot Studio agents. Each pattern is a standalone `.md` file with structured frontmatter and consistent body sections.
+
+**Frontmatter schema:**
+```yaml
+---
+name: <pattern name>
+description: <one-line description>
+challenge: <what problem does this solve>
+status: proven | recommended | experimental
+tags: [tag1, tag2, ...]
+---
+```
+
+**Body sections:** `## Pattern`, `## When to Use`, `## YAML Example`, `## Pitfalls`
+
+Pattern files are pure knowledge — no implementation steps, no skill references. The Advisor agent presents them as suggestions; the Author agent references their YAML examples during implementation.
+
+**How to contribute:**
+1. Create a new `.md` file in `patterns/` following the frontmatter schema and body sections above
+2. Add an index entry in `skills/int-patterns/SKILL.md` with a "Read this pattern when…" block
+3. Set `status` to `experimental` for new patterns until validated in production
+
+## Scenario evals
+
+The plugin includes a testing framework for validating end-to-end scenarios. Evals use **natural language prompts** (what a real user would say) and verify both **routing** (correct agent and skill invoked) and **output** (files created, schema validation, content assertions).
+
+Skills invoked inside sub-agents are traced via a `PreToolUse` hook injected at eval runtime — no plugin changes needed.
 
 ### What's tested
 
-Evals exist for skills that produce YAML files:
-
-| Skill | Evals | What's checked |
-|-------|-------|----------------|
-| `new-topic` | 3 | Topic creation with different trigger types (OnRecognizedIntent, OnConversationStart, OnUnknownIntent) |
-| `edit-agent` | 3 | Instruction changes, display name + conversation starters, generative actions toggle |
-| `add-knowledge` | 3 | Public website, SharePoint, and custom-named knowledge sources |
+| Scenario | Evals | What's checked |
+|----------|-------|----------------|
+| `topic-creation` | 4 | Topic creation with different trigger types, empty workspace refusal |
+| `agent-settings` | 3 | Instruction changes, display name + conversation starters, generative actions toggle |
+| `knowledge-sources` | 3 | Public website, SharePoint, and custom-named knowledge sources |
+| `action-creation` | 2 | MCP and connector action creation |
+| `action-editing` | 3 | MCP action display name, connection mode, structure preservation |
 
 ### Available checks
 
 | Check | What it validates |
 |-------|------------------|
-| `files_created` | Expected output files exist (glob pattern, min count) |
+| `agent_invoked` | Expected sub-agent was dispatched (e.g., Author agent) |
+| `agent_not_invoked` | Unwanted sub-agents were NOT dispatched |
+| `skill_invoked` | Expected skill was invoked (traced inside sub-agents via hook) |
+| `skill_not_invoked` | Unwanted skills were NOT invoked |
+| `files_created` | Expected output files exist (glob pattern, min/max count) |
 | `schema_validate` | Full Copilot Studio schema validation (kind, required fields, unique IDs, Power Fx, variable scopes) |
 | `yaml_structure` | YAML path equals value, min array length, or contains string |
 | `content_contains` | Domain keywords from the prompt appear in output files |
 | `no_placeholders` | No `_REPLACE`, `TODO`, `FIXME` markers remain |
+| `yaml_unchanged` | Specific file or YAML path was NOT modified |
 | `stdout_contains` / `stdout_not_contains` | CLI response text assertions |
 | `exit_code` | CLI exit code matches expected |
+
+**Note:** `skill_invoked` and `skill_not_invoked` checks rely on a `PreToolUse` hook injected at runtime via `--settings`. This only works with Claude Code CLI. When using Copilot CLI (`--cli copilot`), skill tracing is not available — these checks will be skipped and a warning is emitted.
 
 ### Running evals
 
 ```bash
-# Run evals for a single skill
-python3 evals/evaluate.py --skill new-topic --verbose
+# Run evals for a single scenario
+python3 evals/evaluate.py --scenario topic-creation --verbose
 
-# Run all skills and generate HTML report
+# Run all scenarios and generate HTML report
 node evals/run.js
 
 # Run with GitHub Copilot CLI instead of Claude Code
 node evals/run.js --cli copilot
 
 # Run a specific eval by ID
-python3 evals/evaluate.py --skill new-topic --eval-id 1 --verbose
+python3 evals/evaluate.py --scenario agent-settings --eval-id 1 --verbose
 ```
 
 ### Viewing results
@@ -110,23 +172,23 @@ python3 evals/evaluate.py --skill new-topic --eval-id 1 --verbose
 Each run creates a timestamped directory under `evals/results/` with:
 
 ```
-evals/results/2026-04-01-143000/
-├── new-topic.json           # Results JSON
-├── edit-agent.json
-├── add-knowledge.json
-├── new-topic/               # Generated artifacts
+evals/results/2026-04-04-143000/
+├── agent-settings.json      # Results JSON
+├── topic-creation.json
+├── knowledge-sources.json
+├── agent-settings/          # Generated artifacts
+│   ├── eval-1/agent.mcs.yml
+│   └── eval-2/agent.mcs.yml
+├── topic-creation/
 │   ├── eval-1/topics/ITSupport.topic.mcs.yml
-│   ├── eval-2/topics/WelcomeNewUser.topic.mcs.yml
-│   └── eval-3/topics/Fallback.topic.mcs.yml
-├── edit-agent/
 │   └── ...
 └── report.html              # Self-contained HTML report
 ```
 
 Open `report.html` in a browser to see the interactive report with:
 - Dashboard with pass/fail rates
-- Sidebar navigation between skills
-- Expandable eval cards with prompt, response, generated file links, and check results
+- Sidebar navigation between scenarios
+- Expandable eval cards with prompt, routing info, response, generated file links, and check results
 - Keyboard shortcuts: `j`/`k` to navigate, `Enter` to expand, `Esc` to collapse
 - All / Passed / Failed filters
 
@@ -136,39 +198,38 @@ To regenerate the report from existing results:
 python3 evals/report.py evals/results/<timestamp>/
 ```
 
-### Creating evals for your skill
+### Creating evals for a new scenario
 
 **Option 1: Use the `/create-eval` skill** (recommended)
 
 ```
-/create-eval <skill-name>
+/create-eval <scenario-name>
 ```
 
-This walks you through the process — reads your skill, suggests test cases, and writes `evals/skills/<skill-name>.json`.
+This walks you through the process — reads relevant skills, suggests test cases, and writes `evals/scenarios/<scenario-name>.json`.
 
 **Option 2: Create manually**
 
-Create `evals/skills/<your-skill>.json`:
+Create `evals/scenarios/<scenario-name>.json`:
 
 ```json
 {
-  "skill_name": "your-skill",
+  "scenario_name": "your-scenario",
   "evals": [
     {
       "id": 1,
       "name": "Short descriptive title",
-      "prompt": "Use the your-skill skill to <specific task with concrete details>",
+      "prompt": "Add https://docs.contoso.com as a knowledge source for the agent.",
       "fixture": "basic-agent",
       "mock_scripts": [],
       "checks": {
+        "agent_invoked": "copilot-studio:Copilot Studio Author",
+        "skill_invoked": "copilot-studio:add-knowledge",
         "files_created": [
           {"pattern": "knowledge/*.knowledge.mcs.yml", "min_count": 1}
         ],
         "schema_validate": true,
-        "yaml_structure": [
-          {"path": "kind", "equals": "KnowledgeSourceConfiguration"}
-        ],
-        "content_contains": ["expected keyword"],
+        "content_contains": ["docs.contoso.com"],
         "no_placeholders": true
       }
     }
@@ -177,8 +238,9 @@ Create `evals/skills/<your-skill>.json`:
 ```
 
 **Guidelines:**
-- Each prompt **must** start with "Use the \<skill-name\> skill to..." to ensure the correct skill is invoked
-- Include at least 3 test cases covering different scenarios
-- Use `schema_validate: true` for all YAML-producing skills
+- Prompts must be **natural language** — what a real user would say, not "Use the X skill to..."
+- Include `agent_invoked` and `skill_invoked` checks to verify correct routing
+- Include at least 3 test cases covering different possibilities
+- Use `schema_validate: true` for all YAML-producing scenarios
 - Keep prompts specific (mention exact names, values) so checks can be deterministic
 - `content_contains` keywords should come directly from the prompt

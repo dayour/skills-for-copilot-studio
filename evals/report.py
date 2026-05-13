@@ -28,7 +28,7 @@ def load_results(results_dir: Path) -> list[dict]:
     for f in sorted(results_dir.glob("*.json")):
         try:
             data = json.loads(f.read_text())
-            if "skill_name" in data and "results" in data:
+            if ("scenario_name" in data or "skill_name" in data) and "results" in data:
                 results.append(data)
         except (json.JSONDecodeError, KeyError):
             continue
@@ -54,24 +54,27 @@ def generate_html(results: list[dict], results_dir: Path) -> str:
     evals_failed = 0
     for r in results:
         for ev in r["results"]:
-            if ev["summary"]["failed"] == 0:
+            status = ev["summary"].get("status", "passed" if ev["summary"]["failed"] == 0 else "failed")
+            if status == "passed":
                 evals_passed += 1
             else:
                 evals_failed += 1
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cli = results[0]["cli"] if results else "unknown"
+    total_duration = sum(r.get("duration_sec", 0) for r in results)
+    max_parallel = max((r.get("parallel", 1) for r in results), default=1)
 
     # Build skill cards
     skill_cards = []
     for skill_data in results:
-        skill_name = skill_data["skill_name"]
-        skill_cards.append(build_skill_card(skill_name, skill_data, results_dir))
+        scenario_name = skill_data.get("scenario_name", skill_data.get("skill_name", "unknown"))
+        skill_cards.append(build_skill_card(scenario_name, skill_data, results_dir))
 
     # Build skill nav items for sidebar
     skill_nav_items = []
     for skill_data in results:
-        sn = skill_data["skill_name"]
+        sn = skill_data.get("scenario_name", skill_data.get("skill_name", "unknown"))
         sf = skill_data["summary"]["total_checks_failed"]
         nav_class = "nav-fail" if sf > 0 else "nav-pass"
         skill_nav_items.append(
@@ -100,8 +103,9 @@ def generate_html(results: list[dict], results_dir: Path) -> str:
     <div class="sidebar-meta">
       <span class="meta-item">{timestamp}</span>
       <span class="meta-item">CLI: {html.escape(cli)}</span>
+      <span class="meta-item">{total_duration:.0f}s &middot; {max_parallel} worker{'s' if max_parallel != 1 else ''}</span>
     </div>
-    <div class="sidebar-section-label">Skills</div>
+    <div class="sidebar-section-label">Scenarios</div>
     <div class="nav-list">
       {''.join(skill_nav_items)}
     </div>
@@ -133,7 +137,7 @@ def generate_html(results: list[dict], results_dir: Path) -> str:
     <div class="dashboard">
       <div class="stat-card">
         <div class="stat-value">{total_skills}</div>
-        <div class="stat-label">Skills</div>
+        <div class="stat-label">Scenarios</div>
       </div>
       <div class="stat-card">
         <div class="stat-value">{total_evals}</div>
@@ -151,6 +155,8 @@ def generate_html(results: list[dict], results_dir: Path) -> str:
         <div class="stat-value">{evals_failed}</div>
         <div class="stat-label">Failed</div>
       </div>
+
+
     </div>
 
     <div class="progress-bar">
@@ -171,7 +177,7 @@ def generate_html(results: list[dict], results_dir: Path) -> str:
 </html>"""
 
 
-def build_skill_card(skill_name: str, skill_data: dict, results_dir: Path) -> str:
+def build_skill_card(scenario_name: str, skill_data: dict, results_dir: Path) -> str:
     """Build HTML for a single skill card with its evals."""
     summary = skill_data["summary"]
     passed = summary["total_checks_passed"]
@@ -182,14 +188,14 @@ def build_skill_card(skill_name: str, skill_data: dict, results_dir: Path) -> st
 
     eval_rows = []
     for ev in skill_data["results"]:
-        eval_rows.append(build_eval_row(skill_name, ev, results_dir))
+        eval_rows.append(build_eval_row(scenario_name, ev, results_dir))
 
     return f"""
-    <div class="skill-card {status_class}" data-status="{'passed' if all_passed else 'failed'}" id="skill-{sanitize_id(skill_name)}">
+    <div class="skill-card {status_class}" data-status="{'passed' if all_passed else 'failed'}" id="skill-{sanitize_id(scenario_name)}">
       <div class="skill-header" onclick="toggleSkill(this)">
         <div class="skill-info">
           <span class="skill-accent {'accent-pass' if all_passed else 'accent-fail'}"></span>
-          <h2>{html.escape(skill_name)}</h2>
+          <h2>{html.escape(scenario_name)}</h2>
           <span class="eval-count">{len(skill_data['results'])} eval{'s' if len(skill_data['results']) != 1 else ''}</span>
         </div>
         <div class="skill-stats">
@@ -205,21 +211,21 @@ def build_skill_card(skill_name: str, skill_data: dict, results_dir: Path) -> st
     </div>"""
 
 
-def build_eval_row(skill_name: str, ev: dict, results_dir: Path) -> str:
+def build_eval_row(scenario_name: str, ev: dict, results_dir: Path) -> str:
     """Build HTML for a single eval within a skill card."""
     eval_id = ev["eval_id"]
     eval_name = ev.get("name", "")
     prompt = ev["prompt"]
     s = ev["summary"]
-    all_passed = s["failed"] == 0
-    status_class = "eval-passed" if all_passed else "eval-failed"
+    eval_status = s.get("status", "passed" if s["failed"] == 0 else "failed")
+    status_class = {"passed": "eval-passed", "failed": "eval-failed"}.get(eval_status, "eval-failed")
 
     # Build artifact pills (paths relative to report.html in same results dir)
     artifact_pills = []
     for art in ev.get("artifacts", []):
         # art is like "eval-1/topics/ITSupport.topic.mcs.yml" — relative to artifacts_dir
-        # artifacts_dir is <results_dir>/<skill_name>/, so link is <skill_name>/<art>
-        rel_path = f"{skill_name}/{art}"
+        # artifacts_dir is <results_dir>/<scenario_name>/, so link is <scenario_name>/<art>
+        rel_path = f"{scenario_name}/{art}"
         fname = html.escape(art.split("/")[-1])
         artifact_pills.append(
             f'<a href="{html.escape(rel_path)}" class="artifact-pill" title="Open generated file">{fname}</a>'
@@ -259,6 +265,16 @@ def build_eval_row(skill_name: str, ev: dict, results_dir: Path) -> str:
             <span class="check-evidence-wrap">{evidence_html}</span>
           </div>""")
 
+    # Routing info (agents and skills invoked)
+    agents_invoked = ev.get("agents_invoked", [])
+    skills_invoked = ev.get("skills_invoked", [])
+    routing_parts = []
+    if agents_invoked:
+        routing_parts.append(f"<span class='routing-label'>Agents:</span> {', '.join(html.escape(a) for a in agents_invoked)}")
+    if skills_invoked:
+        routing_parts.append(f"<span class='routing-label'>Skills:</span> {', '.join(html.escape(s) for s in skills_invoked)}")
+    routing_html = f"""<div class="routing-box">{' &middot; '.join(routing_parts)}</div>""" if routing_parts else ""
+
     # Response preview with toggle
     raw_response = ev.get("response_text", "")
     short_response = html.escape(raw_response[:200])
@@ -283,12 +299,12 @@ def build_eval_row(skill_name: str, ev: dict, results_dir: Path) -> str:
       <div class="eval-row {status_class}">
         <div class="eval-header" onclick="toggleEval(this)">
           <div class="eval-info">
-            <span class="status-dot {'dot-pass' if all_passed else 'dot-fail'}"></span>
+            <span class="status-dot {'dot-pass' if eval_status == 'passed' else 'dot-fail'}"></span>
             <span class="eval-id">#{eval_id}</span>
             <span class="eval-name">{html.escape(eval_name) if eval_name else html.escape(prompt[:100]) + ('&hellip;' if len(prompt) > 100 else '')}</span>
           </div>
           <div class="eval-stats">
-            <span class="checks-badge-sm {'badge-pass' if all_passed else 'badge-fail'}">{s['passed']}/{s['total']}</span>
+            <span class="checks-badge-sm {'badge-pass' if eval_status == 'passed' else 'badge-fail'}">{s['passed']}/{s['total']}</span>
             <span class="chevron-sm">
               <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </span>
@@ -299,6 +315,7 @@ def build_eval_row(skill_name: str, ev: dict, results_dir: Path) -> str:
             <span class="prompt-label">Prompt</span>
             <div class="prompt-text">{html.escape(prompt)}</div>
           </div>
+          {routing_html}
           {artifacts_html}
           {response_html}
           <div class="checks-list">
@@ -443,6 +460,8 @@ kbd {
 .checks-badge, .checks-badge-sm { font-size: 0.78rem; padding: 3px 10px; border-radius: 12px; font-weight: 500; white-space: nowrap; }
 .badge-pass { background: rgba(63, 185, 80, 0.12); color: #3fb950; }
 .badge-fail { background: rgba(248, 81, 73, 0.12); color: #f85149; }
+.badge-warn { background: rgba(210, 153, 34, 0.12); color: #d29922; }
+.stat-warn .stat-value { color: #d29922; }
 
 .chevron, .chevron-sm { color: #484f58; display: flex; align-items: center; transition: transform 0.25s ease; }
 .expanded .chevron, .expanded .chevron-sm { transform: rotate(180deg); }
@@ -475,6 +494,7 @@ kbd {
 }
 .dot-pass { background: #3fb950; }
 .dot-fail { background: #f85149; }
+.dot-warn { background: #d29922; }
 
 .eval-id { font-weight: 600; color: #c9d1d9; font-size: 0.82rem; white-space: nowrap; }
 .eval-name { color: #c9d1d9; font-size: 0.82rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -490,6 +510,11 @@ kbd {
 .eval-row.open.settled .eval-body { max-height: none; }
 
 /* ── Prompt ── */
+.routing-box {
+  font-size: 0.78rem; color: #8b949e; margin-bottom: 10px;
+  padding: 6px 10px; background: #161b22; border-radius: 6px;
+}
+.routing-label { color: #484f58; font-weight: 600; text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.04em; }
 .prompt-box { margin-bottom: 12px; }
 .prompt-label {
   display: block; font-size: 0.68rem; color: #484f58; text-transform: uppercase;

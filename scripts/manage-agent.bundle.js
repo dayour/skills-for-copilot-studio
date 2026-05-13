@@ -33,6 +33,190 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
+// src/shared-utils.js
+var require_shared_utils = __commonJS({
+  "src/shared-utils.js"(exports2, module2) {
+    var readline = require("readline");
+    function log2(msg) {
+      process.stderr.write(msg + "\n");
+    }
+    function die2(msg) {
+      process.stdout.write(JSON.stringify({ status: "error", error: msg }) + "\n");
+      process.exit(1);
+    }
+    var sleep2 = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    async function httpGet(url, headers) {
+      const res = await fetch(url, { headers });
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        die2(`HTTP ${res.status} from GET ${url}: ${body.slice(0, 200)}`);
+      }
+      return res.json();
+    }
+    async function httpPost(url, headers, body) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify(body)
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        die2(`HTTP ${res.status} from POST ${url}: ${text.slice(0, 200)}`);
+      }
+      return res.json();
+    }
+    async function fetchToken(tokenEndpointUrl) {
+      log2("Fetching DirectLine token from token endpoint...");
+      const data = await httpGet(tokenEndpointUrl, {});
+      if (!data.token) die2("Token endpoint did not return a token.");
+      return data.token;
+    }
+    async function getRegionalDomain(tokenEndpointUrl) {
+      try {
+        const parsed = new URL(tokenEndpointUrl);
+        const settingsUrl = parsed.origin + "/powervirtualagents/regionalchannelsettings?api-version=2022-03-01-preview";
+        log2("Fetching regional DirectLine domain...");
+        const data = await httpGet(settingsUrl, {});
+        const domain = data.channelUrlsById?.directline?.replace(/\/+$/, "");
+        if (domain) {
+          log2(`Regional domain: ${domain}`);
+          return domain;
+        }
+      } catch (e) {
+        log2(`Warning: Could not fetch regional domain (${e.message}). Using default.`);
+      }
+      return "https://directline.botframework.com";
+    }
+    async function startConversation(domain, token) {
+      log2("Starting DirectLine conversation...");
+      const data = await httpPost(
+        `${domain}/v3/directline/conversations`,
+        { Authorization: `Bearer ${token}` },
+        {}
+      );
+      if (!data.conversationId) die2("startConversation did not return a conversationId.");
+      return { conversationId: data.conversationId, token: data.token || token };
+    }
+    async function sendActivity(domain, conversationId, token, activity) {
+      return httpPost(
+        `${domain}/v3/directline/conversations/${conversationId}/activities`,
+        { Authorization: `Bearer ${token}` },
+        activity
+      );
+    }
+    async function pollActivities(domain, conversationId, token, watermark) {
+      let url = `${domain}/v3/directline/conversations/${conversationId}/activities`;
+      if (watermark !== void 0) {
+        url += `?watermark=${watermark}`;
+      }
+      const data = await httpGet(url, { Authorization: `Bearer ${token}` });
+      return {
+        activities: data.activities || [],
+        watermark: data.watermark
+      };
+    }
+    function findSignInCard(activities) {
+      for (const activity of activities) {
+        if (activity.type !== "message" || !activity.attachments) continue;
+        for (const att of activity.attachments) {
+          if (att.contentType === "application/vnd.microsoft.card.signin" || att.contentType === "application/vnd.microsoft.card.oauth") {
+            const url = att.content?.buttons?.[0]?.value || att.content?.tokenExchangeResource?.uri || null;
+            if (url) return { signinUrl: url };
+          }
+        }
+      }
+      return null;
+    }
+    async function promptForAuthCode(signinUrl) {
+      log2("");
+      log2("Sign-in required.");
+      log2(`Open this URL in your browser:
+  ${signinUrl}`);
+      log2("After signing in, enter the validation code below.");
+      log2("");
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stderr
+      });
+      const code = await new Promise((resolve) => {
+        rl.question("Validation code: ", (answer) => {
+          resolve(answer.trim());
+        });
+      });
+      rl.close();
+      if (!code) die2("No validation code received on stdin.");
+      return code;
+    }
+    async function runPollLoop(domain, conversationId, token, opts) {
+      const timeoutMs = opts && opts.timeoutMs || 3e4;
+      const intervalMs = opts && opts.intervalMs || 1e3;
+      let watermark = opts && opts.watermark;
+      let lastActivityTime = Date.now();
+      let authHandled = false;
+      const allBotActivities = [];
+      while (true) {
+        if (Date.now() - lastActivityTime > timeoutMs) {
+          log2("Poll timeout \u2014 no more bot activities.");
+          break;
+        }
+        const result = await pollActivities(domain, conversationId, token, watermark);
+        watermark = result.watermark;
+        const botActivities = result.activities.filter(
+          (a) => a.from && a.from.role !== "user"
+        );
+        for (const activity of botActivities) {
+          lastActivityTime = Date.now();
+          if (activity.type === "endOfConversation") {
+            allBotActivities.push(activity);
+            return { activities: allBotActivities, watermark };
+          }
+          if (!authHandled) {
+            const card = findSignInCard([activity]);
+            if (card) {
+              authHandled = true;
+              if (process.stdin.isTTY) {
+                const code = await promptForAuthCode(card.signinUrl);
+                await sendActivity(domain, conversationId, token, {
+                  type: "message",
+                  from: { id: "user1", role: "user" },
+                  text: code
+                });
+                log2("Validation code sent. Waiting for authenticated response...");
+                lastActivityTime = Date.now();
+                continue;
+              } else {
+                allBotActivities.push(activity);
+                return {
+                  activities: allBotActivities,
+                  watermark,
+                  signin: { url: card.signinUrl }
+                };
+              }
+            }
+          }
+          allBotActivities.push(activity);
+        }
+        await sleep2(intervalMs);
+      }
+      return { activities: allBotActivities, watermark };
+    }
+    module2.exports = {
+      log: log2,
+      die: die2,
+      sleep: sleep2,
+      httpGet,
+      httpPost,
+      fetchToken,
+      getRegionalDomain,
+      startConversation,
+      sendActivity,
+      pollActivities,
+      findSignInCard,
+      runPollLoop
+    };
+  }
+});
+
 // src/msal-cache.js
 var require_msal_cache = __commonJS({
   "src/msal-cache.js"(exports2, module2) {
@@ -41,7 +225,7 @@ var require_msal_cache = __commonJS({
     var os3 = require("os");
     var CACHE_DIR = path3.join(os3.homedir(), ".copilot-studio-cli");
     var SERVICE_NAME = "copilot-studio-cli";
-    async function createCachePlugin2(accountName) {
+    async function createCachePlugin(accountName) {
       const cachePath = path3.join(CACHE_DIR, `${accountName}.cache.json`);
       const persistence = await PersistenceCreator.createPersistence({
         cachePath,
@@ -52,7 +236,7 @@ var require_msal_cache = __commonJS({
       });
       return new PersistenceCachePlugin(persistence);
     }
-    module2.exports = { createCachePlugin: createCachePlugin2 };
+    module2.exports = { createCachePlugin };
   }
 });
 
@@ -4339,7 +4523,8 @@ var require_msal_node = __commonJS({
             refresh_on: atEntity.refreshOn,
             key_id: atEntity.keyId,
             token_type: atEntity.tokenType,
-            userAssertionHash: atEntity.userAssertionHash
+            userAssertionHash: atEntity.userAssertionHash,
+            resource: atEntity.resource
           };
         });
         return accessTokens;
@@ -4614,6 +4799,8 @@ var require_msal_node = __commonJS({
     var BROKER_CLIENT_ID = "brk_client_id";
     var BROKER_REDIRECT_URI = "brk_redirect_uri";
     var INSTANCE_AWARE = "instance_aware";
+    var RESOURCE = "resource";
+    var CLI_DATA = "clidata";
     function getDefaultErrorMessage(code) {
       return `See https://aka.ms/msal.js.errors#${code} for details`;
     }
@@ -4808,6 +4995,8 @@ var require_msal_node = __commonJS({
     var methodNotImplemented = "method_not_implemented";
     var nestedAppAuthBridgeDisabled = "nested_app_auth_bridge_disabled";
     var platformBrokerError = "platform_broker_error";
+    var resourceParameterRequired = "resource_parameter_required";
+    var misplacedResourceParam = "misplaced_resource_parameter";
     var ClientAuthErrorCodes = /* @__PURE__ */ Object.freeze({
       __proto__: null,
       authTimeNotFound,
@@ -4827,6 +5016,7 @@ var require_msal_node = __commonJS({
       keyIdMissing,
       maxAgeTranspired,
       methodNotImplemented,
+      misplacedResourceParam,
       multipleMatchingAppMetadata,
       multipleMatchingTokens,
       nestedAppAuthBridgeDisabled,
@@ -4840,6 +5030,7 @@ var require_msal_node = __commonJS({
       openIdConfigError,
       platformBrokerError,
       requestCannotBeMade,
+      resourceParameterRequired,
       stateMismatch,
       stateNotFound,
       tokenClaimsCnfRequiredForSignedJwt,
@@ -5068,14 +5259,17 @@ var require_msal_node = __commonJS({
     function addSid(parameters, sid) {
       parameters.set(SID, sid);
     }
-    function addClaims(parameters, claims, clientCapabilities) {
-      const mergedClaims = addClientCapabilitiesToClaims(claims, clientCapabilities);
-      try {
-        JSON.parse(mergedClaims);
-      } catch (e) {
-        throw createClientConfigurationError(invalidClaims);
+    function addClaims(parameters, claims, clientCapabilities, skipBrokerClaims) {
+      const configClaims = skipBrokerClaims && parameters.has(BROKER_CLIENT_ID) ? void 0 : clientCapabilities;
+      if (!StringUtils.isEmptyObj(claims) || configClaims && configClaims.length > 0) {
+        const mergedClaims = addClientCapabilitiesToClaims(claims, configClaims);
+        try {
+          JSON.parse(mergedClaims);
+        } catch (e) {
+          throw createClientConfigurationError(invalidClaims);
+        }
+        parameters.set(CLAIMS, mergedClaims);
       }
-      parameters.set(CLAIMS, mergedClaims);
     }
     function addCorrelationId(parameters, correlationId) {
       parameters.set(CLIENT_REQUEST_ID, correlationId);
@@ -5154,6 +5348,9 @@ var require_msal_node = __commonJS({
     function addClientInfo(parameters) {
       parameters.set(CLIENT_INFO, "1");
     }
+    function addCliData(parameters) {
+      parameters.set(CLI_DATA, "1");
+    }
     function addInstanceAware(parameters) {
       if (!parameters.has(INSTANCE_AWARE)) {
         parameters.set(INSTANCE_AWARE, "true");
@@ -5221,6 +5418,11 @@ var require_msal_node = __commonJS({
       }
       if (!parameters.has(BROKER_REDIRECT_URI)) {
         parameters.set(BROKER_REDIRECT_URI, brokerRedirectUri);
+      }
+    }
+    function addResource(parameters, resource) {
+      if (resource) {
+        parameters.set(RESOURCE, resource);
       }
     }
     function stripLeadingHashOrQuery(responseString) {
@@ -5507,7 +5709,7 @@ var require_msal_node = __commonJS({
       }
     };
     var name$1 = "@azure/msal-common";
-    var version$1 = "16.2.0";
+    var version$1 = "16.5.1";
     var AzureCloudInstance = {
       // AzureCloudInstance is not specified.
       None: "none",
@@ -5535,7 +5737,8 @@ var require_msal_node = __commonJS({
           name: name2,
           username: preferred_username || upn || "",
           loginHint: login_hint,
-          isHomeTenant: tenantIdMatchesHomeTenant(tenantId2, homeAccountId)
+          isHomeTenant: tenantIdMatchesHomeTenant(tenantId2, homeAccountId),
+          upn
         };
       } else {
         return {
@@ -6034,6 +6237,10 @@ var require_msal_node = __commonJS({
        * Gets first tenanted AccountInfo object found based on provided filters
        */
       getAccountInfoFilteredBy(accountFilter, correlationId) {
+        if (Object.keys(accountFilter).length === 0 || Object.values(accountFilter).every((value) => value === null || value === void 0 || value === "")) {
+          this.commonLogger.warning("getAccountInfoFilteredBy: Account filter is empty or invalid, returning null", correlationId);
+          return null;
+        }
         const allAccounts = this.getAllAccounts(accountFilter, correlationId);
         if (allAccounts.length > 1) {
           const sortedAccounts = allAccounts.sort((account) => {
@@ -6122,6 +6329,15 @@ var require_msal_node = __commonJS({
         if (tenantProfileFilter.isHomeTenant !== void 0 && !(tenantProfile.isHomeTenant === tenantProfileFilter.isHomeTenant)) {
           return false;
         }
+        if (!!tenantProfileFilter.username && !(this.matchUsername(tenantProfile.username, tenantProfileFilter.username) || !this.matchUsername(tenantProfile.upn, tenantProfileFilter.username))) {
+          return false;
+        }
+        if (!!tenantProfileFilter.loginHint && !this.matchLoginHintWithTenantProfile(tenantProfile, tenantProfileFilter.loginHint)) {
+          return false;
+        }
+        if (!!tenantProfileFilter.upn && !(tenantProfile.upn === tenantProfileFilter.upn)) {
+          return false;
+        }
         return true;
       }
       idTokenClaimsMatchTenantProfileFilter(idTokenClaims, tenantProfileFilter) {
@@ -6132,7 +6348,7 @@ var require_msal_node = __commonJS({
           if (!!tenantProfileFilter.loginHint && !this.matchLoginHintFromTokenClaims(idTokenClaims, tenantProfileFilter.loginHint)) {
             return false;
           }
-          if (!!tenantProfileFilter.username && !this.matchUsername(idTokenClaims.preferred_username, tenantProfileFilter.username)) {
+          if (!!tenantProfileFilter.username && !this.matchUsername(idTokenClaims.preferred_username, tenantProfileFilter.username) && !this.matchUsername(idTokenClaims.upn, tenantProfileFilter.username)) {
             return false;
           }
           if (!!tenantProfileFilter.name && !this.matchName(idTokenClaims, tenantProfileFilter.name)) {
@@ -6224,9 +6440,6 @@ var require_msal_node = __commonJS({
           if (!!accountFilter.homeAccountId && !this.matchHomeAccountId(entity, accountFilter.homeAccountId)) {
             return;
           }
-          if (!!accountFilter.username && !this.matchUsername(entity.username, accountFilter.username)) {
-            return;
-          }
           if (!!accountFilter.environment && !this.matchEnvironment(entity, accountFilter.environment, correlationId)) {
             return;
           }
@@ -6241,7 +6454,10 @@ var require_msal_node = __commonJS({
           }
           const tenantProfileFilter = {
             localAccountId: accountFilter?.localAccountId,
-            name: accountFilter?.name
+            name: accountFilter?.name,
+            username: accountFilter?.username,
+            loginHint: accountFilter?.loginHint,
+            upn: accountFilter?.upn
           };
           const matchingTenantProfiles = entity.tenantProfiles?.filter((tenantProfile) => {
             return this.tenantProfileMatchesFilter(tenantProfile, tenantProfileFilter);
@@ -6460,10 +6676,10 @@ var require_msal_node = __commonJS({
             const numHomeIdTokens = homeIdTokenMap.size;
             if (numHomeIdTokens < 1) {
               this.commonLogger.info("CacheManager:getIdToken - Multiple ID tokens found for account but none match account entity tenant id, returning first result", correlationId);
-              return idTokenMap.values().next().value;
+              return idTokenMap.values().next().value ?? null;
             } else if (numHomeIdTokens === 1) {
               this.commonLogger.info("CacheManager:getIdToken - Multiple ID tokens found for account, defaulting to home tenant profile", correlationId);
-              return homeIdTokenMap.values().next().value;
+              return homeIdTokenMap.values().next().value ?? null;
             } else {
               tokensToBeRemoved = homeIdTokenMap;
             }
@@ -6476,7 +6692,7 @@ var require_msal_node = __commonJS({
           return null;
         }
         this.commonLogger.info("CacheManager:getIdToken - Returning ID token", correlationId);
-        return idTokenMap.values().next().value;
+        return idTokenMap.values().next().value ?? null;
       }
       /**
        * Gets all idTokens matching the given filter
@@ -6751,6 +6967,15 @@ var require_msal_node = __commonJS({
         return !!(cachedUsername && typeof cachedUsername === "string" && filterUsername?.toLowerCase() === cachedUsername.toLowerCase());
       }
       /**
+       * helper to match loginhints
+       * @param entity
+       * @param loginHint
+       * @returns
+       */
+      matchLoginHintWithTenantProfile(tenantProfile, loginHintFilter) {
+        return tenantProfile.loginHint === loginHintFilter || tenantProfile.username === loginHintFilter || tenantProfile.upn === loginHintFilter;
+      }
+      /**
        * helper to match assertion
        * @param value
        * @param oboAssertion
@@ -6834,6 +7059,9 @@ var require_msal_node = __commonJS({
           return true;
         }
         if (tokenClaims.upn === loginHint) {
+          return true;
+        }
+        if (tokenClaims.emails && tokenClaims.emails.includes(loginHint)) {
           return true;
         }
         return false;
@@ -7100,104 +7328,31 @@ var require_msal_node = __commonJS({
         clientCapabilities: [],
         azureCloudOptions: DEFAULT_AZURE_CLOUD_OPTIONS,
         instanceAware: false,
+        isMcp: false,
         ...authOptions
       };
     }
     function isOidcProtocolMode(config) {
       return config.authOptions.authority.options.protocolMode === ProtocolMode.OIDC;
     }
-    var ServerError = class _ServerError extends AuthError {
-      constructor(errorCode, errorMessage, subError, errorNo, status) {
-        super(errorCode, errorMessage, subError);
-        this.name = "ServerError";
-        this.errorNo = errorNo;
-        this.status = status;
-        Object.setPrototypeOf(this, _ServerError.prototype);
+    var TokenCacheContext = class {
+      constructor(tokenCache, hasChanged) {
+        this.cache = tokenCache;
+        this.hasChanged = hasChanged;
+      }
+      /**
+       * boolean which indicates the changes in cache
+       */
+      get cacheHasChanged() {
+        return this.hasChanged;
+      }
+      /**
+       * function to retrieve the token cache
+       */
+      get tokenCache() {
+        return this.cache;
       }
     };
-    var noTokensFound = "no_tokens_found";
-    var nativeAccountUnavailable = "native_account_unavailable";
-    var refreshTokenExpired = "refresh_token_expired";
-    var uxNotAllowed = "ux_not_allowed";
-    var interactionRequired = "interaction_required";
-    var consentRequired = "consent_required";
-    var loginRequired = "login_required";
-    var badToken = "bad_token";
-    var interruptedUser = "interrupted_user";
-    var InteractionRequiredAuthErrorCodes = /* @__PURE__ */ Object.freeze({
-      __proto__: null,
-      badToken,
-      consentRequired,
-      interactionRequired,
-      interruptedUser,
-      loginRequired,
-      nativeAccountUnavailable,
-      noTokensFound,
-      refreshTokenExpired,
-      uxNotAllowed
-    });
-    var InteractionRequiredServerErrorMessage = [
-      interactionRequired,
-      consentRequired,
-      loginRequired,
-      badToken,
-      uxNotAllowed,
-      interruptedUser
-    ];
-    var InteractionRequiredAuthSubErrorMessage = [
-      "message_only",
-      "additional_action",
-      "basic_action",
-      "user_password_expired",
-      "consent_required",
-      "bad_token",
-      "ux_not_allowed",
-      "interrupted_user"
-    ];
-    var InteractionRequiredAuthError = class _InteractionRequiredAuthError extends AuthError {
-      constructor(errorCode, errorMessage, subError, timestamp, traceId, correlationId, claims, errorNo) {
-        super(errorCode, errorMessage, subError);
-        Object.setPrototypeOf(this, _InteractionRequiredAuthError.prototype);
-        this.timestamp = timestamp || "";
-        this.traceId = traceId || "";
-        this.correlationId = correlationId || "";
-        this.claims = claims || "";
-        this.name = "InteractionRequiredAuthError";
-        this.errorNo = errorNo;
-      }
-    };
-    function isInteractionRequiredError(errorCode, errorString, subError) {
-      const isInteractionRequiredErrorCode = !!errorCode && InteractionRequiredServerErrorMessage.indexOf(errorCode) > -1;
-      const isInteractionRequiredSubError = !!subError && InteractionRequiredAuthSubErrorMessage.indexOf(subError) > -1;
-      const isInteractionRequiredErrorDesc = !!errorString && InteractionRequiredServerErrorMessage.some((irErrorCode) => {
-        return errorString.indexOf(irErrorCode) > -1;
-      });
-      return isInteractionRequiredErrorCode || isInteractionRequiredErrorDesc || isInteractionRequiredSubError;
-    }
-    function createInteractionRequiredAuthError(errorCode, errorMessage) {
-      return new InteractionRequiredAuthError(errorCode, errorMessage);
-    }
-    function parseRequestState(base64Decode, state) {
-      if (!base64Decode) {
-        throw createClientAuthError(noCryptoObject);
-      }
-      if (!state) {
-        throw createClientAuthError(invalidState);
-      }
-      try {
-        const splitState = state.split(RESOURCE_DELIM);
-        const libraryState = splitState[0];
-        const userState = splitState.length > 1 ? splitState.slice(1).join(RESOURCE_DELIM) : "";
-        const libraryStateString = base64Decode(libraryState);
-        const libraryStateObj = JSON.parse(libraryStateString);
-        return {
-          userRequestState: userState || "",
-          libraryState: libraryStateObj
-        };
-      } catch (e) {
-        throw createClientAuthError(invalidState);
-      }
-    }
     function nowSeconds() {
       return Math.round((/* @__PURE__ */ new Date()).getTime() / 1e3);
     }
@@ -7219,170 +7374,6 @@ var require_msal_node = __commonJS({
     function delay(t, value) {
       return new Promise((resolve) => setTimeout(() => resolve(value), t));
     }
-    var NetworkClientSendPostRequestAsync = "networkClientSendPostRequestAsync";
-    var RefreshTokenClientExecutePostToTokenEndpoint = "refreshTokenClientExecutePostToTokenEndpoint";
-    var AuthorizationCodeClientExecutePostToTokenEndpoint = "authorizationCodeClientExecutePostToTokenEndpoint";
-    var RefreshTokenClientExecuteTokenRequest = "refreshTokenClientExecuteTokenRequest";
-    var RefreshTokenClientAcquireToken = "refreshTokenClientAcquireToken";
-    var RefreshTokenClientAcquireTokenWithCachedRefreshToken = "refreshTokenClientAcquireTokenWithCachedRefreshToken";
-    var RefreshTokenClientCreateTokenRequestBody = "refreshTokenClientCreateTokenRequestBody";
-    var SilentFlowClientGenerateResultFromCacheRecord = "silentFlowClientGenerateResultFromCacheRecord";
-    var AuthClientExecuteTokenRequest = "authClientExecuteTokenRequest";
-    var AuthClientCreateTokenRequestBody = "authClientCreateTokenRequestBody";
-    var UpdateTokenEndpointAuthority = "updateTokenEndpointAuthority";
-    var PopTokenGenerateCnf = "popTokenGenerateCnf";
-    var HandleServerTokenResponse = "handleServerTokenResponse";
-    var AuthorityResolveEndpointsAsync = "authorityResolveEndpointsAsync";
-    var AuthorityGetCloudDiscoveryMetadataFromNetwork = "authorityGetCloudDiscoveryMetadataFromNetwork";
-    var AuthorityUpdateCloudDiscoveryMetadata = "authorityUpdateCloudDiscoveryMetadata";
-    var AuthorityGetEndpointMetadataFromNetwork = "authorityGetEndpointMetadataFromNetwork";
-    var AuthorityUpdateEndpointMetadata = "authorityUpdateEndpointMetadata";
-    var AuthorityUpdateMetadataWithRegionalInformation = "authorityUpdateMetadataWithRegionalInformation";
-    var RegionDiscoveryDetectRegion = "regionDiscoveryDetectRegion";
-    var RegionDiscoveryGetRegionFromIMDS = "regionDiscoveryGetRegionFromIMDS";
-    var RegionDiscoveryGetCurrentVersion = "regionDiscoveryGetCurrentVersion";
-    var CacheManagerGetRefreshToken = "cacheManagerGetRefreshToken";
-    var invoke = (callback, eventName, logger, telemetryClient, correlationId) => {
-      return (...args) => {
-        logger.trace(`Executing function '${eventName}'`, correlationId);
-        const inProgressEvent = telemetryClient.startMeasurement(eventName, correlationId);
-        if (correlationId) {
-          telemetryClient.incrementFields({ [`ext.${eventName}CallCount`]: 1 }, correlationId);
-        }
-        try {
-          const result = callback(...args);
-          inProgressEvent.end({
-            success: true
-          });
-          logger.trace(`Returning result from '${eventName}'`, correlationId);
-          return result;
-        } catch (e) {
-          logger.trace(`Error occurred in '${eventName}'`, correlationId);
-          try {
-            logger.trace(JSON.stringify(e), correlationId);
-          } catch (e2) {
-            logger.trace("Unable to print error message.", correlationId);
-          }
-          inProgressEvent.end({
-            success: false
-          }, e);
-          throw e;
-        }
-      };
-    };
-    var invokeAsync = (callback, eventName, logger, telemetryClient, correlationId) => {
-      return (...args) => {
-        logger.trace(`Executing function '${eventName}'`, correlationId);
-        const inProgressEvent = telemetryClient.startMeasurement(eventName, correlationId);
-        if (correlationId) {
-          telemetryClient.incrementFields({ [`ext.${eventName}CallCount`]: 1 }, correlationId);
-        }
-        return callback(...args).then((response) => {
-          logger.trace(`Returning result from '${eventName}'`, correlationId);
-          inProgressEvent.end({
-            success: true
-          });
-          return response;
-        }).catch((e) => {
-          logger.trace(`Error occurred in '${eventName}'`, correlationId);
-          try {
-            logger.trace(JSON.stringify(e), correlationId);
-          } catch (e2) {
-            logger.trace("Unable to print error message.", correlationId);
-          }
-          inProgressEvent.end({
-            success: false
-          }, e);
-          throw e;
-        });
-      };
-    };
-    var KeyLocation = {
-      SW: "sw"
-    };
-    var PopTokenGenerator = class {
-      constructor(cryptoUtils, performanceClient) {
-        this.cryptoUtils = cryptoUtils;
-        this.performanceClient = performanceClient;
-      }
-      /**
-       * Generates the req_cnf validated at the RP in the POP protocol for SHR parameters
-       * and returns an object containing the keyid, the full req_cnf string and the req_cnf string hash
-       * @param request
-       * @returns
-       */
-      async generateCnf(request, logger) {
-        const reqCnf = await invokeAsync(this.generateKid.bind(this), PopTokenGenerateCnf, logger, this.performanceClient, request.correlationId)(request);
-        const reqCnfString = this.cryptoUtils.base64UrlEncode(JSON.stringify(reqCnf));
-        return {
-          kid: reqCnf.kid,
-          reqCnfString
-        };
-      }
-      /**
-       * Generates key_id for a SHR token request
-       * @param request
-       * @returns
-       */
-      async generateKid(request) {
-        const kidThumbprint = await this.cryptoUtils.getPublicKeyThumbprint(request);
-        return {
-          kid: kidThumbprint,
-          xms_ksl: KeyLocation.SW
-        };
-      }
-      /**
-       * Signs the POP access_token with the local generated key-pair
-       * @param accessToken
-       * @param request
-       * @returns
-       */
-      async signPopToken(accessToken, keyId, request) {
-        return this.signPayload(accessToken, keyId, request);
-      }
-      /**
-       * Utility function to generate the signed JWT for an access_token
-       * @param payload
-       * @param kid
-       * @param request
-       * @param claims
-       * @returns
-       */
-      async signPayload(payload, keyId, request, claims) {
-        const { resourceRequestMethod, resourceRequestUri, shrClaims, shrNonce, shrOptions } = request;
-        const resourceUrlString = resourceRequestUri ? new UrlString(resourceRequestUri) : void 0;
-        const resourceUrlComponents = resourceUrlString?.getUrlComponents();
-        return this.cryptoUtils.signJwt({
-          at: payload,
-          ts: nowSeconds(),
-          m: resourceRequestMethod?.toUpperCase(),
-          u: resourceUrlComponents?.HostNameAndPort,
-          nonce: shrNonce || this.cryptoUtils.createNewGuid(),
-          p: resourceUrlComponents?.AbsolutePath,
-          q: resourceUrlComponents?.QueryString ? [[], resourceUrlComponents.QueryString] : void 0,
-          client_claims: shrClaims || void 0,
-          ...claims
-        }, keyId, shrOptions, request.correlationId);
-      }
-    };
-    var TokenCacheContext = class {
-      constructor(tokenCache, hasChanged) {
-        this.cache = tokenCache;
-        this.hasChanged = hasChanged;
-      }
-      /**
-       * boolean which indicates the changes in cache
-       */
-      get cacheHasChanged() {
-        return this.hasChanged;
-      }
-      /**
-       * function to retrieve the token cache
-       */
-      get tokenCache() {
-        return this.cache;
-      }
-    };
     function createIdTokenEntity(homeAccountId, environment, idToken, clientId, tenantId) {
       const idTokenEntity = {
         credentialType: CredentialType.ID_TOKEN,
@@ -7534,6 +7525,244 @@ var require_msal_node = __commonJS({
     function isAuthorityMetadataExpired(metadata) {
       return metadata.expiresAt <= nowSeconds();
     }
+    var NetworkClientSendPostRequestAsync = "networkClientSendPostRequestAsync";
+    var RefreshTokenClientExecutePostToTokenEndpoint = "refreshTokenClientExecutePostToTokenEndpoint";
+    var AuthorizationCodeClientExecutePostToTokenEndpoint = "authorizationCodeClientExecutePostToTokenEndpoint";
+    var RefreshTokenClientExecuteTokenRequest = "refreshTokenClientExecuteTokenRequest";
+    var RefreshTokenClientAcquireToken = "refreshTokenClientAcquireToken";
+    var RefreshTokenClientAcquireTokenWithCachedRefreshToken = "refreshTokenClientAcquireTokenWithCachedRefreshToken";
+    var RefreshTokenClientCreateTokenRequestBody = "refreshTokenClientCreateTokenRequestBody";
+    var SilentFlowClientGenerateResultFromCacheRecord = "silentFlowClientGenerateResultFromCacheRecord";
+    var AuthClientExecuteTokenRequest = "authClientExecuteTokenRequest";
+    var AuthClientCreateTokenRequestBody = "authClientCreateTokenRequestBody";
+    var UpdateTokenEndpointAuthority = "updateTokenEndpointAuthority";
+    var PopTokenGenerateCnf = "popTokenGenerateCnf";
+    var HandleServerTokenResponse = "handleServerTokenResponse";
+    var AuthorityResolveEndpointsAsync = "authorityResolveEndpointsAsync";
+    var AuthorityGetCloudDiscoveryMetadataFromNetwork = "authorityGetCloudDiscoveryMetadataFromNetwork";
+    var AuthorityUpdateCloudDiscoveryMetadata = "authorityUpdateCloudDiscoveryMetadata";
+    var AuthorityGetEndpointMetadataFromNetwork = "authorityGetEndpointMetadataFromNetwork";
+    var AuthorityUpdateEndpointMetadata = "authorityUpdateEndpointMetadata";
+    var AuthorityUpdateMetadataWithRegionalInformation = "authorityUpdateMetadataWithRegionalInformation";
+    var RegionDiscoveryDetectRegion = "regionDiscoveryDetectRegion";
+    var RegionDiscoveryGetRegionFromIMDS = "regionDiscoveryGetRegionFromIMDS";
+    var RegionDiscoveryGetCurrentVersion = "regionDiscoveryGetCurrentVersion";
+    var CacheManagerGetRefreshToken = "cacheManagerGetRefreshToken";
+    var invoke = (callback, eventName, logger, telemetryClient, correlationId) => {
+      return (...args) => {
+        logger.trace(`Executing function '${eventName}'`, correlationId);
+        const inProgressEvent = telemetryClient.startMeasurement(eventName, correlationId);
+        if (correlationId) {
+          telemetryClient.incrementFields({ [`ext.${eventName}CallCount`]: 1 }, correlationId);
+        }
+        try {
+          const result = callback(...args);
+          inProgressEvent.end({
+            success: true
+          });
+          logger.trace(`Returning result from '${eventName}'`, correlationId);
+          return result;
+        } catch (e) {
+          logger.trace(`Error occurred in '${eventName}'`, correlationId);
+          try {
+            logger.trace(JSON.stringify(e), correlationId);
+          } catch (e2) {
+            logger.trace("Unable to print error message.", correlationId);
+          }
+          inProgressEvent.end({
+            success: false
+          }, e);
+          throw e;
+        }
+      };
+    };
+    var invokeAsync = (callback, eventName, logger, telemetryClient, correlationId) => {
+      return (...args) => {
+        logger.trace(`Executing function '${eventName}'`, correlationId);
+        const inProgressEvent = telemetryClient.startMeasurement(eventName, correlationId);
+        if (correlationId) {
+          telemetryClient.incrementFields({ [`ext.${eventName}CallCount`]: 1 }, correlationId);
+        }
+        return callback(...args).then((response) => {
+          logger.trace(`Returning result from '${eventName}'`, correlationId);
+          inProgressEvent.end({
+            success: true
+          });
+          return response;
+        }).catch((e) => {
+          logger.trace(`Error occurred in '${eventName}'`, correlationId);
+          try {
+            logger.trace(JSON.stringify(e), correlationId);
+          } catch (e2) {
+            logger.trace("Unable to print error message.", correlationId);
+          }
+          inProgressEvent.end({
+            success: false
+          }, e);
+          throw e;
+        });
+      };
+    };
+    var KeyLocation = {
+      SW: "sw"
+    };
+    var PopTokenGenerator = class {
+      constructor(cryptoUtils, performanceClient) {
+        this.cryptoUtils = cryptoUtils;
+        this.performanceClient = performanceClient;
+      }
+      /**
+       * Generates the req_cnf validated at the RP in the POP protocol for SHR parameters
+       * and returns an object containing the keyid, the full req_cnf string and the req_cnf string hash
+       * @param request
+       * @returns
+       */
+      async generateCnf(request, logger) {
+        const reqCnf = await invokeAsync(this.generateKid.bind(this), PopTokenGenerateCnf, logger, this.performanceClient, request.correlationId)(request);
+        const reqCnfString = this.cryptoUtils.base64UrlEncode(JSON.stringify(reqCnf));
+        return {
+          kid: reqCnf.kid,
+          reqCnfString
+        };
+      }
+      /**
+       * Generates key_id for a SHR token request
+       * @param request
+       * @returns
+       */
+      async generateKid(request) {
+        const kidThumbprint = await this.cryptoUtils.getPublicKeyThumbprint(request);
+        return {
+          kid: kidThumbprint,
+          xms_ksl: KeyLocation.SW
+        };
+      }
+      /**
+       * Signs the POP access_token with the local generated key-pair
+       * @param accessToken
+       * @param request
+       * @returns
+       */
+      async signPopToken(accessToken, keyId, request) {
+        return this.signPayload(accessToken, keyId, request);
+      }
+      /**
+       * Utility function to generate the signed JWT for an access_token
+       * @param payload
+       * @param kid
+       * @param request
+       * @param claims
+       * @returns
+       */
+      async signPayload(payload, keyId, request, claims) {
+        const { resourceRequestMethod, resourceRequestUri, shrClaims, shrNonce, shrOptions } = request;
+        const resourceUrlString = resourceRequestUri ? new UrlString(resourceRequestUri) : void 0;
+        const resourceUrlComponents = resourceUrlString?.getUrlComponents();
+        return this.cryptoUtils.signJwt({
+          at: payload,
+          ts: nowSeconds(),
+          m: resourceRequestMethod?.toUpperCase(),
+          u: resourceUrlComponents?.HostNameAndPort,
+          nonce: shrNonce || this.cryptoUtils.createNewGuid(),
+          p: resourceUrlComponents?.AbsolutePath,
+          q: resourceUrlComponents?.QueryString ? [[], resourceUrlComponents.QueryString] : void 0,
+          client_claims: shrClaims || void 0,
+          ...claims
+        }, keyId, shrOptions, request.correlationId);
+      }
+    };
+    var noTokensFound = "no_tokens_found";
+    var nativeAccountUnavailable = "native_account_unavailable";
+    var refreshTokenExpired = "refresh_token_expired";
+    var uxNotAllowed = "ux_not_allowed";
+    var interactionRequired = "interaction_required";
+    var consentRequired = "consent_required";
+    var loginRequired = "login_required";
+    var badToken = "bad_token";
+    var interruptedUser = "interrupted_user";
+    var InteractionRequiredAuthErrorCodes = /* @__PURE__ */ Object.freeze({
+      __proto__: null,
+      badToken,
+      consentRequired,
+      interactionRequired,
+      interruptedUser,
+      loginRequired,
+      nativeAccountUnavailable,
+      noTokensFound,
+      refreshTokenExpired,
+      uxNotAllowed
+    });
+    var InteractionRequiredServerErrorMessage = [
+      interactionRequired,
+      consentRequired,
+      loginRequired,
+      badToken,
+      uxNotAllowed,
+      interruptedUser
+    ];
+    var InteractionRequiredAuthSubErrorMessage = [
+      "message_only",
+      "additional_action",
+      "basic_action",
+      "user_password_expired",
+      "consent_required",
+      "bad_token",
+      "ux_not_allowed",
+      "interrupted_user"
+    ];
+    var InteractionRequiredAuthError = class _InteractionRequiredAuthError extends AuthError {
+      constructor(errorCode, errorMessage, subError, timestamp, traceId, correlationId, claims, errorNo) {
+        super(errorCode, errorMessage, subError);
+        Object.setPrototypeOf(this, _InteractionRequiredAuthError.prototype);
+        this.timestamp = timestamp || "";
+        this.traceId = traceId || "";
+        this.correlationId = correlationId || "";
+        this.claims = claims || "";
+        this.name = "InteractionRequiredAuthError";
+        this.errorNo = errorNo;
+      }
+    };
+    function isInteractionRequiredError(errorCode, errorString, subError) {
+      const isInteractionRequiredErrorCode = !!errorCode && InteractionRequiredServerErrorMessage.indexOf(errorCode) > -1;
+      const isInteractionRequiredSubError = !!subError && InteractionRequiredAuthSubErrorMessage.indexOf(subError) > -1;
+      const isInteractionRequiredErrorDesc = !!errorString && InteractionRequiredServerErrorMessage.some((irErrorCode) => {
+        return errorString.indexOf(irErrorCode) > -1;
+      });
+      return isInteractionRequiredErrorCode || isInteractionRequiredErrorDesc || isInteractionRequiredSubError;
+    }
+    function createInteractionRequiredAuthError(errorCode, errorMessage) {
+      return new InteractionRequiredAuthError(errorCode, errorMessage);
+    }
+    var ServerError = class _ServerError extends AuthError {
+      constructor(errorCode, errorMessage, subError, errorNo, status) {
+        super(errorCode, errorMessage, subError);
+        this.name = "ServerError";
+        this.errorNo = errorNo;
+        this.status = status;
+        Object.setPrototypeOf(this, _ServerError.prototype);
+      }
+    };
+    function parseRequestState(base64Decode, state) {
+      if (!base64Decode) {
+        throw createClientAuthError(noCryptoObject);
+      }
+      if (!state) {
+        throw createClientAuthError(invalidState);
+      }
+      try {
+        const splitState = state.split(RESOURCE_DELIM);
+        const libraryState = splitState[0];
+        const userState = splitState.length > 1 ? splitState.slice(1).join(RESOURCE_DELIM) : "";
+        const libraryStateString = base64Decode(libraryState);
+        const libraryStateObj = JSON.parse(libraryStateString);
+        return {
+          userRequestState: userState || "",
+          libraryState: libraryStateObj
+        };
+      } catch (e) {
+        throw createClientAuthError(invalidState);
+      }
+    }
     var ResponseHandler = class _ResponseHandler {
       constructor(clientId, cacheStorage, cryptoObj, logger, performanceClient, serializableCache, persistencePlugin) {
         this.clientId = clientId;
@@ -7657,7 +7886,8 @@ ${serverError}`, correlationId);
             authCodePayload,
             void 0,
             // nativeAccountId
-            this.logger
+            this.logger,
+            this.performanceClient
           );
         }
         let cachedAccessToken = null;
@@ -7670,6 +7900,10 @@ ${serverError}`, correlationId);
           const extendedTokenExpirationSeconds = tokenExpirationSeconds + extExpiresIn;
           const refreshOnSeconds = refreshIn && refreshIn > 0 ? reqTimestamp + refreshIn : void 0;
           cachedAccessToken = createAccessTokenEntity(this.homeAccountIdentifier, env, serverTokenResponse.access_token, this.clientId, claimsTenantId || authority.tenant || "", responseScopes.printScopes(), tokenExpirationSeconds, extendedTokenExpirationSeconds, this.cryptoObj.base64Decode, refreshOnSeconds, serverTokenResponse.token_type, userAssertionHash, serverTokenResponse.key_id);
+          const resource = request.resource || null;
+          if (resource) {
+            cachedAccessToken.resource = resource;
+          }
         }
         let cachedRefreshToken = null;
         if (serverTokenResponse.refresh_token) {
@@ -7772,16 +8006,15 @@ ${serverError}`, correlationId);
         };
       }
     };
-    function buildAccountToCache(cacheStorage, authority, homeAccountId, base64Decode, correlationId, idTokenClaims, clientInfo, environment, claimsTenantId, authCodePayload, nativeAccountId, logger) {
+    function buildAccountToCache(cacheStorage, authority, homeAccountId, base64Decode, correlationId, idTokenClaims, clientInfo, environment, claimsTenantId, authCodePayload, nativeAccountId, logger, performanceClient) {
       logger?.verbose("setCachedAccount called", correlationId);
-      const accountKeys = cacheStorage.getAccountKeys();
-      const baseAccountKey = accountKeys.find((accountKey) => {
-        return accountKey.startsWith(homeAccountId);
-      });
-      let cachedAccount = null;
-      if (baseAccountKey) {
-        cachedAccount = cacheStorage.getAccount(baseAccountKey, correlationId);
+      const accountEnvironment = environment || authority.getPreferredCache();
+      const matchedAccounts = cacheStorage.getAccountsFilteredBy({ homeAccountId, environment: accountEnvironment }, correlationId);
+      performanceClient?.addFields({ cacheMatchedAccounts: matchedAccounts.length }, correlationId);
+      if (matchedAccounts.length > 1) {
+        logger?.warning("Multiple base accounts matched homeAccountId. Ignoring cached account and creating a new base account.", correlationId);
       }
+      const cachedAccount = matchedAccounts.length === 1 ? matchedAccounts[0] : null;
       const baseAccount = cachedAccount || createAccountEntity({
         homeAccountId,
         idTokenClaims,
@@ -8875,6 +9108,7 @@ Error Description: '${typedError.message}'`, this.correlationId);
           addRedirectUri(parameters, request.redirectUri);
         }
         addScopes(parameters, request.scopes, true, this.oidcDefaultScopes);
+        addResource(parameters, request.resource);
         addAuthorizationCode(parameters, request.code);
         addLibraryInfo(parameters, this.config.libraryInfo);
         addApplicationTelemetry(parameters, this.config.telemetry.application);
@@ -8911,9 +9145,6 @@ Error Description: '${typedError.message}'`, this.correlationId);
           } else {
             throw createClientConfigurationError(missingSshJwk);
           }
-        }
-        if (!StringUtils.isEmptyObj(request.claims) || this.config.authOptions.clientCapabilities && this.config.authOptions.clientCapabilities.length > 0) {
-          addClaims(parameters, request.claims, this.config.authOptions.clientCapabilities);
         }
         let ccsCred = void 0;
         if (request.clientInfo) {
@@ -8956,6 +9187,7 @@ Error Description: '${typedError.message}'`, this.correlationId);
           });
         }
         instrumentBrokerParams(parameters, request.correlationId, this.performanceClient);
+        addClaims(parameters, request.claims, this.config.authOptions.clientCapabilities, request.skipBrokerClaims);
         return mapToQueryString(parameters);
       }
       /**
@@ -9144,9 +9376,6 @@ Error Description: '${typedError.message}'`, this.correlationId);
             throw createClientConfigurationError(missingSshJwk);
           }
         }
-        if (!StringUtils.isEmptyObj(request.claims) || this.config.authOptions.clientCapabilities && this.config.authOptions.clientCapabilities.length > 0) {
-          addClaims(parameters, request.claims, this.config.authOptions.clientCapabilities);
-        }
         if (this.config.systemOptions.preventCorsPreflight && request.ccsCredential) {
           switch (request.ccsCredential.type) {
             case CcsCredentialType.HOME_ACCOUNT_ID:
@@ -9171,6 +9400,7 @@ Error Description: '${typedError.message}'`, this.correlationId);
           });
         }
         instrumentBrokerParams(parameters, request.correlationId, this.performanceClient);
+        addClaims(parameters, request.claims, this.config.authOptions.clientCapabilities, request.skipBrokerClaims);
         return mapToQueryString(parameters);
       }
     };
@@ -9207,6 +9437,11 @@ Error Description: '${typedError.message}'`, this.correlationId);
         } else if (wasClockTurnedBack(cachedAccessToken.cachedAt) || isTokenExpired(cachedAccessToken.expiresOn, this.config.systemOptions.tokenRenewalOffsetSeconds)) {
           this.setCacheOutcome(CacheOutcome.CACHED_ACCESS_TOKEN_EXPIRED, request.correlationId);
           throw createClientAuthError(tokenRefreshRequired);
+        } else if (request.resource) {
+          if (cachedAccessToken.resource !== request.resource) {
+            this.setCacheOutcome(CacheOutcome.NO_CACHED_ACCESS_TOKEN, request.correlationId);
+            throw createClientAuthError(tokenRefreshRequired);
+          }
         } else if (cachedAccessToken.refreshOn && isTokenExpired(cachedAccessToken.refreshOn, 0)) {
           lastCacheOutcome = CacheOutcome.PROACTIVELY_REFRESHED;
         }
@@ -9264,10 +9499,12 @@ Error Description: '${typedError.message}'`, this.correlationId);
         ...request.extraScopesToConsent || []
       ];
       addScopes(parameters, requestScopes, true, authOptions.authority.options.OIDCOptions?.defaultScopes);
+      addResource(parameters, request.resource);
       addRedirectUri(parameters, request.redirectUri);
       addCorrelationId(parameters, correlationId);
       addResponseMode(parameters, request.responseMode);
       addClientInfo(parameters);
+      addCliData(parameters);
       if (request.prompt) {
         addPrompt(parameters, request.prompt);
       }
@@ -9331,12 +9568,10 @@ Error Description: '${typedError.message}'`, this.correlationId);
       if (request.state) {
         addState(parameters, request.state);
       }
-      if (request.claims || authOptions.clientCapabilities && authOptions.clientCapabilities.length > 0) {
-        addClaims(parameters, request.claims, authOptions.clientCapabilities);
-      }
       if (request.embeddedClientId) {
         addBrokerParameters(parameters, authOptions.clientId, authOptions.redirectUri);
       }
+      addClaims(parameters, request.claims, authOptions.clientCapabilities, request.skipBrokerClaims);
       if (authOptions.instanceAware && (!request.extraQueryParameters || !Object.keys(request.extraQueryParameters).includes(INSTANCE_AWARE))) {
         addInstanceAware(parameters);
       }
@@ -9351,6 +9586,23 @@ Error Description: '${typedError.message}'`, this.correlationId);
     }
     function extractLoginHint(account) {
       return account.loginHint || account.idTokenClaims?.login_hint || null;
+    }
+    function enforceResourceParameter(isMcp, request) {
+      if (!isMcp) {
+        return;
+      }
+      if (request.resource && (containsResourceParam(request.extraParameters) || containsResourceParam(request.extraQueryParameters))) {
+        throw createClientAuthError(misplacedResourceParam);
+      }
+      if (!request.resource) {
+        throw createClientAuthError(resourceParameterRequired);
+      }
+    }
+    function containsResourceParam(params) {
+      if (!params) {
+        return false;
+      }
+      return Object.prototype.hasOwnProperty.call(params, "resource");
     }
     var unexpectedError = "unexpected_error";
     var postRequestFailed = "post_request_failed";
@@ -9671,6 +9923,7 @@ Error Description: '${typedError.message}'`, this.correlationId);
               keyId: serializedAT.key_id,
               tokenType: serializedAT.token_type,
               userAssertionHash: serializedAT.userAssertionHash,
+              resource: serializedAT.resource,
               lastUpdatedAt: Date.now().toString()
             };
             atObjects[key] = accessToken;
@@ -10157,7 +10410,8 @@ Error Description: '${typedError.message}'`, this.correlationId);
       azureCloudOptions: {
         azureCloudInstance: AzureCloudInstance.None,
         tenant: ""
-      }
+      },
+      isMcp: false
     };
     var DEFAULT_LOGGER_OPTIONS = {
       loggerCallback: () => {
@@ -11180,7 +11434,7 @@ Error Description: '${typedError.message}'`, this.correlationId);
       }
     };
     var name = "@azure/msal-node";
-    var version2 = "5.0.6";
+    var version2 = "5.1.4";
     var BaseClient = class {
       constructor(configuration) {
         this.config = buildClientConfiguration(configuration);
@@ -11563,7 +11817,8 @@ Error Description: '${typedError.message}'`, this.correlationId);
             clientId: this.config.auth.clientId,
             authority: discoveredAuthority,
             clientCapabilities: this.config.auth.clientCapabilities,
-            redirectUri
+            redirectUri,
+            isMcp: this.config.auth.isMcp
           },
           loggerOptions: {
             logLevel: this.config.system.loggerOptions.logLevel,
@@ -11952,6 +12207,7 @@ Error Description: '${typedError.message}'`, this.correlationId);
        */
       async acquireTokenByDeviceCode(request) {
         this.logger.info("acquireTokenByDeviceCode called", request.correlationId || "");
+        enforceResourceParameter(this.config.auth.isMcp, request);
         const validRequest = Object.assign(request, await this.initializeBaseRequest(request));
         const serverTelemetryManager = this.initializeServerTelemetryManager(ApiId.acquireTokenByDeviceCode, validRequest.correlationId);
         try {
@@ -11974,6 +12230,7 @@ Error Description: '${typedError.message}'`, this.correlationId);
       async acquireTokenInteractive(request) {
         const correlationId = request.correlationId || this.cryptoProvider.createNewGuid();
         this.logger.trace("acquireTokenInteractive called", correlationId);
+        enforceResourceParameter(this.config.auth.isMcp, request);
         const { openBrowser, successTemplate, errorTemplate, windowHandle, loopbackClient: customLoopbackClient, ...remainingProperties } = request;
         if (this.nativeBrokerPlugin) {
           const brokerRequest = {
@@ -12049,6 +12306,7 @@ Error Description: '${typedError.message}'`, this.correlationId);
       async acquireTokenSilent(request) {
         const correlationId = request.correlationId || this.cryptoProvider.createNewGuid();
         this.logger.trace("acquireTokenSilent called", correlationId);
+        enforceResourceParameter(this.config.auth.isMcp, request);
         if (this.nativeBrokerPlugin) {
           const brokerRequest = {
             ...request,
@@ -12074,6 +12332,22 @@ Error Description: '${typedError.message}'`, this.correlationId);
           request.redirectUri = "";
         }
         return super.acquireTokenSilent(request);
+      }
+      /**
+       * Acquires a token by exchanging the authorization code received from the first step of OAuth 2.0 Authorization Code Flow.
+       * In MCP mode, a resource parameter is required on the request.
+       */
+      async acquireTokenByCode(request, authCodePayLoad) {
+        enforceResourceParameter(this.config.auth.isMcp, request);
+        return super.acquireTokenByCode(request, authCodePayLoad);
+      }
+      /**
+       * Acquires a token by exchanging the refresh token provided for a new set of tokens.
+       * In MCP mode, a resource parameter is required on the request.
+       */
+      async acquireTokenByRefreshToken(request) {
+        enforceResourceParameter(this.config.auth.isMcp, request);
+        return super.acquireTokenByRefreshToken(request);
       }
       /**
        * Removes cache artifacts associated with the given account
@@ -14535,22 +14809,205 @@ var init_open = __esm({
   }
 });
 
+// src/shared-auth.js
+var require_shared_auth = __commonJS({
+  "src/shared-auth.js"(exports2, module2) {
+    var { log: log2 } = require_shared_utils();
+    var { createCachePlugin } = require_msal_cache();
+    var VSCODE_CLIENT_ID2 = "51f81489-12ee-4a9e-aaae-a2591f45987d";
+    var ISLAND_RESOURCE_IDS = {
+      0: "a522f059-bb65-47c0-8934-7db6e5286414",
+      1: "a522f059-bb65-47c0-8934-7db6e5286414",
+      2: "a522f059-bb65-47c0-8934-7db6e5286414",
+      3: "a522f059-bb65-47c0-8934-7db6e5286414",
+      4: "96ff4394-9197-43aa-b393-6a41652e21f8",
+      5: "96ff4394-9197-43aa-b393-6a41652e21f8",
+      6: "9315aedd-209b-43b3-b149-2abff6a95d59",
+      7: "69c6e40c-465f-4154-987d-da5cba10734e",
+      8: "bd4a9f18-e349-4c74-a6b7-65dd465ea9ab"
+    };
+    function getIslandResourceId2(clusterCategory) {
+      const id = ISLAND_RESOURCE_IDS[clusterCategory];
+      if (!id) throw new Error(`Unknown cluster category: ${clusterCategory}`);
+      return id;
+    }
+    var _cachePlugin = null;
+    var _msalApps = /* @__PURE__ */ new Map();
+    async function getDefaultCachePlugin() {
+      if (!_cachePlugin) {
+        _cachePlugin = await createCachePlugin("manage-agent");
+      }
+      return _cachePlugin;
+    }
+    async function createMsalApp(tenantId, clientId, cacheSlot) {
+      const msal = require_msal_node();
+      if (cacheSlot) {
+        const plugin = await createCachePlugin(cacheSlot);
+        return new msal.PublicClientApplication({
+          auth: {
+            clientId,
+            authority: `https://login.microsoftonline.com/${tenantId}`
+          },
+          cache: { cachePlugin: plugin }
+        });
+      }
+      const key = `${tenantId}:${clientId}`;
+      if (_msalApps.has(key)) return _msalApps.get(key);
+      const cachePlugin = await getDefaultCachePlugin();
+      const app = new msal.PublicClientApplication({
+        auth: {
+          clientId,
+          authority: `https://login.microsoftonline.com/${tenantId}`
+        },
+        cache: { cachePlugin }
+      });
+      _msalApps.set(key, app);
+      return app;
+    }
+    function buildTokenInfo2(result) {
+      return {
+        accessToken: result.accessToken,
+        expiresOn: result.expiresOn ? result.expiresOn.toISOString() : new Date(Date.now() + 3600 * 1e3).toISOString(),
+        scopes: result.scopes,
+        account: result.account ? {
+          homeAccountId: result.account.homeAccountId,
+          environment: result.account.environment,
+          tenantId: result.account.tenantId,
+          username: result.account.username
+        } : void 0
+      };
+    }
+    async function acquireTokenDeviceCode2(tenantId, clientId, scopes, cacheSlot) {
+      const app = await createMsalApp(tenantId, clientId, cacheSlot);
+      const result = await app.acquireTokenByDeviceCode({
+        scopes,
+        deviceCodeCallback: (response) => {
+          log2("");
+          log2(`  ${response.message}`);
+          log2("");
+          process.stdout.write(
+            JSON.stringify({
+              status: "device_code",
+              userCode: response.userCode,
+              verificationUri: response.verificationUri,
+              message: response.message,
+              expiresIn: response.expiresIn
+            }) + "\n"
+          );
+        }
+      });
+      if (!result) throw new Error("Device code flow returned no result");
+      return buildTokenInfo2(result);
+    }
+    async function acquireTokenInteractive2(tenantId, clientId, scopes, cacheSlot) {
+      const app = await createMsalApp(tenantId, clientId, cacheSlot);
+      const result = await app.acquireTokenInteractive({
+        scopes,
+        openBrowser: async (url) => {
+          log2("");
+          log2(`  Open this URL to sign in: ${url}`);
+          log2("");
+          const open2 = (await Promise.resolve().then(() => (init_open(), open_exports))).default;
+          await open2(url);
+        },
+        successTemplate: "<html><body><h1>Login successful. You can close this tab.</h1></body></html>"
+      });
+      if (!result) throw new Error("Interactive flow returned no result");
+      return buildTokenInfo2(result);
+    }
+    async function acquireTokenSilent2(tenantId, clientId, scopes, cacheSlot) {
+      const app = await createMsalApp(tenantId, clientId, cacheSlot);
+      const allAccounts = await app.getTokenCache().getAllAccounts();
+      const accounts = allAccounts.filter((a) => a.tenantId === tenantId);
+      if (accounts.length > 0) {
+        try {
+          const result = await app.acquireTokenSilent({
+            scopes,
+            account: accounts[0]
+          });
+          if (result) {
+            const scopeKey = scopes[0];
+            log2(`${scopeKey}: silently refreshed (expires ${result.expiresOn?.toISOString()})`);
+            return buildTokenInfo2(result);
+          }
+        } catch (e) {
+          log2(`Silent refresh failed: ${e.message}`);
+        }
+      }
+      return null;
+    }
+    async function getOrAcquireToken2(tenantId, clientId, scopes, label, cacheSlot) {
+      const silent = await acquireTokenSilent2(tenantId, clientId, scopes, cacheSlot);
+      if (silent) {
+        log2(`${label}: using cached token (expires ${silent.expiresOn})`);
+        return silent;
+      }
+      log2(`${label}: starting interactive login...`);
+      return acquireTokenInteractive2(tenantId, clientId, scopes, cacheSlot);
+    }
+    async function getOrAcquireIslandToken2(tenantId, clusterCategory, label) {
+      const resourceId = getIslandResourceId2(clusterCategory);
+      return getOrAcquireToken2(
+        tenantId,
+        VSCODE_CLIENT_ID2,
+        [`api://${resourceId}/.default`],
+        label
+      );
+    }
+    module2.exports = {
+      VSCODE_CLIENT_ID: VSCODE_CLIENT_ID2,
+      ISLAND_RESOURCE_IDS,
+      getIslandResourceId: getIslandResourceId2,
+      createMsalApp,
+      buildTokenInfo: buildTokenInfo2,
+      acquireTokenDeviceCode: acquireTokenDeviceCode2,
+      acquireTokenInteractive: acquireTokenInteractive2,
+      acquireTokenSilent: acquireTokenSilent2,
+      getOrAcquireToken: getOrAcquireToken2,
+      getOrAcquireIslandToken: getOrAcquireIslandToken2
+    };
+  }
+});
+
 // src/manage-agent.js
 var { spawn } = require("child_process");
 var { randomUUID } = require("crypto");
 var path2 = require("path");
 var fs6 = require("fs");
 var os2 = require("os");
-var { createCachePlugin } = require_msal_cache();
-function log(msg) {
-  process.stderr.write(msg + "\n");
-}
+var { log, die, sleep } = require_shared_utils();
+var {
+  VSCODE_CLIENT_ID,
+  getIslandResourceId,
+  buildTokenInfo,
+  acquireTokenDeviceCode,
+  acquireTokenInteractive,
+  acquireTokenSilent,
+  getOrAcquireToken,
+  getOrAcquireIslandToken
+} = require_shared_auth();
 function warn(msg) {
   process.stderr.write("[WARN] " + msg + "\n");
 }
-function die(msg) {
-  process.stdout.write(JSON.stringify({ status: "error", error: msg }) + "\n");
-  process.exit(1);
+var COPILOT_STUDIO_HOST_RE = /^copilotstudio(?:\.preview)?\.microsoft\.com$/i;
+function parseAgentUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (!COPILOT_STUDIO_HOST_RE.test(parsed.hostname)) return null;
+  const segments = parsed.pathname.split("/").filter(Boolean);
+  const envIdx = segments.indexOf("environments");
+  const botsIdx = segments.indexOf("bots");
+  if (envIdx === -1 || botsIdx === -1 || botsIdx <= envIdx + 1 || botsIdx + 1 >= segments.length) {
+    return null;
+  }
+  const environmentId = decodeURIComponent(segments[envIdx + 1]);
+  const agentId = decodeURIComponent(segments[botsIdx + 1]);
+  if (!environmentId || !agentId) return null;
+  return { environmentId, agentId };
 }
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -14570,7 +15027,8 @@ function parseArgs() {
     // default: filter by owner
     timeout: 3e5,
     // default: 5 minutes for publish polling
-    force: false
+    force: false,
+    url: null
   };
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -14615,6 +15073,9 @@ function parseArgs() {
       case "--force":
         parsed.force = true;
         break;
+      case "--url":
+        parsed.url = args[++i];
+        break;
       default:
         if (!args[i].startsWith("--") && !parsed.command) {
           parsed.command = args[i];
@@ -14627,115 +15088,19 @@ function parseArgs() {
       "Usage: manage-agent <command> [options]\nCommands: auth, push, pull, clone, changes, validate, publish, list-agents, list-envs"
     );
   }
-  return parsed;
-}
-var VSCODE_CLIENT_ID = "51f81489-12ee-4a9e-aaae-a2591f45987d";
-var ISLAND_RESOURCE_IDS = {
-  0: "a522f059-bb65-47c0-8934-7db6e5286414",
-  1: "a522f059-bb65-47c0-8934-7db6e5286414",
-  2: "a522f059-bb65-47c0-8934-7db6e5286414",
-  3: "a522f059-bb65-47c0-8934-7db6e5286414",
-  4: "96ff4394-9197-43aa-b393-6a41652e21f8",
-  5: "96ff4394-9197-43aa-b393-6a41652e21f8",
-  6: "9315aedd-209b-43b3-b149-2abff6a95d59",
-  7: "69c6e40c-465f-4154-987d-da5cba10734e",
-  8: "bd4a9f18-e349-4c74-a6b7-65dd465ea9ab"
-};
-function getIslandResourceId(clusterCategory) {
-  const id = ISLAND_RESOURCE_IDS[clusterCategory];
-  if (!id) throw new Error(`Unknown cluster category: ${clusterCategory}`);
-  return id;
-}
-var _cachePlugin = null;
-var _msalApps = /* @__PURE__ */ new Map();
-async function getCachePlugin() {
-  if (!_cachePlugin) {
-    _cachePlugin = await createCachePlugin("manage-agent");
-  }
-  return _cachePlugin;
-}
-async function createMsalApp(tenantId, clientId) {
-  const key = `${tenantId}:${clientId}`;
-  if (_msalApps.has(key)) return _msalApps.get(key);
-  const msal = require_msal_node();
-  const cachePlugin = await getCachePlugin();
-  const app = new msal.PublicClientApplication({
-    auth: {
-      clientId,
-      authority: `https://login.microsoftonline.com/${tenantId}`
-    },
-    cache: { cachePlugin }
-  });
-  _msalApps.set(key, app);
-  return app;
-}
-function buildTokenInfo(result) {
-  return {
-    accessToken: result.accessToken,
-    expiresOn: result.expiresOn ? result.expiresOn.toISOString() : new Date(Date.now() + 3600 * 1e3).toISOString(),
-    scopes: result.scopes,
-    account: result.account ? {
-      homeAccountId: result.account.homeAccountId,
-      environment: result.account.environment,
-      tenantId: result.account.tenantId,
-      username: result.account.username
-    } : void 0
-  };
-}
-async function acquireTokenInteractive(tenantId, clientId, scopes) {
-  const app = await createMsalApp(tenantId, clientId);
-  const result = await app.acquireTokenInteractive({
-    scopes,
-    openBrowser: async (url) => {
-      log("");
-      log(`  Open this URL to sign in: ${url}`);
-      log("");
-      const open2 = (await Promise.resolve().then(() => (init_open(), open_exports))).default;
-      await open2(url);
-    },
-    successTemplate: "<html><body><h1>Login successful. You can close this tab.</h1></body></html>"
-  });
-  if (!result) throw new Error("Interactive flow returned no result");
-  return buildTokenInfo(result);
-}
-async function acquireTokenSilent(tenantId, clientId, scopes) {
-  const app = await createMsalApp(tenantId, clientId);
-  const allAccounts = await app.getTokenCache().getAllAccounts();
-  const accounts = allAccounts.filter((a) => a.tenantId === tenantId);
-  if (accounts.length > 0) {
-    try {
-      const result = await app.acquireTokenSilent({
-        scopes,
-        account: accounts[0]
-      });
-      if (result) {
-        const scopeKey = scopes[0];
-        log(`${scopeKey}: silently refreshed (expires ${result.expiresOn?.toISOString()})`);
-        return buildTokenInfo(result);
-      }
-    } catch (e) {
-      log(`Silent refresh failed: ${e.message}`);
+  if (parsed.url) {
+    const urlInfo = parseAgentUrl(parsed.url);
+    if (!urlInfo) {
+      die(
+        `Could not parse Copilot Studio URL: ${parsed.url}
+Expected format: https://copilotstudio.microsoft.com/environments/<envId>/bots/<agentId>`
+      );
     }
+    if (!parsed.environmentId) parsed.environmentId = urlInfo.environmentId;
+    if (!parsed.agentId) parsed.agentId = urlInfo.agentId;
+    log(`Parsed URL \u2192 environmentId: ${urlInfo.environmentId}, agentId: ${urlInfo.agentId}`);
   }
-  return null;
-}
-async function getOrAcquireToken(tenantId, clientId, scopes, label) {
-  const silent = await acquireTokenSilent(tenantId, clientId, scopes);
-  if (silent) {
-    log(`${label}: using cached token (expires ${silent.expiresOn})`);
-    return silent;
-  }
-  log(`${label}: starting interactive login...`);
-  return acquireTokenInteractive(tenantId, clientId, scopes);
-}
-async function getOrAcquireIslandToken(tenantId, clusterCategory, label) {
-  const resourceId = getIslandResourceId(clusterCategory);
-  return getOrAcquireToken(
-    tenantId,
-    VSCODE_CLIENT_ID,
-    [`api://${resourceId}/.default`],
-    label
-  );
+  return parsed;
 }
 var EXTENSION_ID = "ms-copilotstudio.vscode-copilotstudio";
 var BINARY_NAME = "LanguageServerHost";
@@ -15173,6 +15538,52 @@ function buildSyncRequest(args, tokens) {
   }
   return request;
 }
+var LSP_TRANSIENT_SSL_MAX_ATTEMPTS = 3;
+var LSP_TRANSIENT_SSL_RETRY_DELAY_MS = 3e3;
+function isTransientSslError(message) {
+  return /ssl connection could not be established/i.test(message || "");
+}
+function isLspErrorCode(code) {
+  return code < 0 || code >= 400;
+}
+function buildLspError(method, result) {
+  if (result && typeof result === "object" && typeof result.code === "number" && isLspErrorCode(result.code)) {
+    const message = result.message || "LSP request failed";
+    const retryHint = isTransientSslError(message) ? " This is sometimes transient; retry the command if it continues after automatic retries." : "";
+    return new Error(`${method} failed: ${message} (code ${result.code}).${retryHint}`);
+  }
+  return null;
+}
+async function sendCustomRequestWithRetries(client, method, request, options = {}) {
+  const maxAttempts = options.maxAttempts || LSP_TRANSIENT_SSL_MAX_ATTEMPTS;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const result = await client.sendCustomRequest(method, request);
+      const error = buildLspError(method, result);
+      if (!error) return result;
+      if (!isTransientSslError(error.message) || attempt === maxAttempts) {
+        throw error;
+      }
+    } catch (error) {
+      if (error.message && error.message.startsWith(`${method} failed:`)) {
+        throw error;
+      }
+      if (isTransientSslError(error.message) && attempt === maxAttempts) {
+        throw new Error(
+          `${method} failed: ${error.message}. This is sometimes transient; retry the command if it continues after automatic retries.`
+        );
+      }
+      if (!isTransientSslError(error.message) || attempt === maxAttempts) {
+        throw error;
+      }
+    }
+    log(
+      `[retry] ${method} failed with a transient SSL error (attempt ${attempt}/${maxAttempts}). Retrying in ${LSP_TRANSIENT_SSL_RETRY_DELAY_MS / 1e3}s...`
+    );
+    await sleep(LSP_TRANSIENT_SSL_RETRY_DELAY_MS);
+  }
+  throw new Error(`${method} failed after ${maxAttempts} attempts`);
+}
 async function cmdAuth(args) {
   if (!args.tenantId) die("--tenant-id (or CPS_TENANT_ID) is required");
   if (!args.environmentUrl) die("--environment-url (or CPS_ENVIRONMENT_URL) is required");
@@ -15239,9 +15650,17 @@ async function acquireLspTokens(args) {
 async function cmdWithLsp(args, method) {
   if (!args.workspace) die("--workspace is required");
   if (!args.tenantId) die("--tenant-id (or CPS_TENANT_ID) is required");
-  if (!args.environmentUrl) die("--environment-url (or CPS_ENVIRONMENT_URL) is required");
-  if (!args.environmentId) die("--environment-id (or CPS_ENVIRONMENT_ID) is required");
-  if (!args.agentMgmtUrl) die("--agent-mgmt-url (or CPS_AGENT_MGMT_URL) is required");
+  if (!args.environmentId) die("--environment-id (or --url / CPS_ENVIRONMENT_ID) is required");
+  if (!args.environmentUrl || !args.agentMgmtUrl) {
+    log("Resolving environment details from BAP API...");
+    const envDetails = await resolveEnvironmentById(args.tenantId, args.environmentId);
+    if (!args.environmentUrl) args.environmentUrl = envDetails.dataverseUrl;
+    if (!args.agentMgmtUrl) args.agentMgmtUrl = envDetails.agentManagementUrl;
+    if (!args.environmentName) args.environmentName = envDetails.displayName;
+    log(`Resolved: ${envDetails.displayName} (${envDetails.dataverseUrl})`);
+  }
+  if (!args.environmentUrl) die("Could not resolve --environment-url (or CPS_ENVIRONMENT_URL)");
+  if (!args.agentMgmtUrl) die("Could not resolve --agent-mgmt-url (or CPS_AGENT_MGMT_URL)");
   const tokens = await acquireLspTokens(args);
   const binaryInfo = findBinary();
   const client = new LspClient(binaryInfo, args.workspace);
@@ -15264,7 +15683,7 @@ async function cmdWithLsp(args, method) {
     }
     const request = buildSyncRequest(args, tokens);
     log(`Calling ${method}...`);
-    const result = await client.sendCustomRequest(method, request);
+    const result = await sendCustomRequestWithRetries(client, method, request);
     process.stdout.write(
       JSON.stringify({ status: "ok", method, result }, null, 2) + "\n"
     );
@@ -15275,9 +15694,16 @@ async function cmdWithLsp(args, method) {
 async function cmdValidate(args) {
   if (!args.workspace) die("--workspace is required");
   if (!args.tenantId) die("--tenant-id (or CPS_TENANT_ID) is required");
-  if (!args.environmentUrl) die("--environment-url (or CPS_ENVIRONMENT_URL) is required");
-  if (!args.environmentId) die("--environment-id (or CPS_ENVIRONMENT_ID) is required");
-  if (!args.agentMgmtUrl) die("--agent-mgmt-url (or CPS_AGENT_MGMT_URL) is required");
+  if (!args.environmentId) die("--environment-id (or --url / CPS_ENVIRONMENT_ID) is required");
+  if (!args.environmentUrl || !args.agentMgmtUrl) {
+    log("Resolving environment details from BAP API...");
+    const envDetails = await resolveEnvironmentById(args.tenantId, args.environmentId);
+    if (!args.environmentUrl) args.environmentUrl = envDetails.dataverseUrl;
+    if (!args.agentMgmtUrl) args.agentMgmtUrl = envDetails.agentManagementUrl;
+    if (!args.environmentName) args.environmentName = envDetails.displayName;
+  }
+  if (!args.environmentUrl) die("Could not resolve --environment-url (or CPS_ENVIRONMENT_URL)");
+  if (!args.agentMgmtUrl) die("Could not resolve --agent-mgmt-url (or CPS_AGENT_MGMT_URL)");
   const tokens = await acquireLspTokens(args);
   const binaryInfo = findBinary();
   const client = new LspClient(binaryInfo, args.workspace);
@@ -15292,76 +15718,37 @@ async function cmdValidate(args) {
 var BAP_HOST = "api.bap.microsoft.com";
 var BAP_TOKEN_SCOPE = "https://service.powerapps.com/.default";
 async function httpGetJson(url, accessToken) {
-  const https = require("https");
-  return new Promise((resolve, reject) => {
-    const req = https.get(url, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    }, (res) => {
-      let data = "";
-      res.on("error", reject);
-      res.on("data", (chunk) => data += chunk);
-      res.on("end", () => {
-        if (res.statusCode >= 400) {
-          reject(new Error(`HTTP ${res.statusCode}: ${data.substring(0, 500)}`));
-        } else {
-          try {
-            resolve(JSON.parse(data));
-          } catch (e) {
-            reject(new Error(`Invalid JSON: ${e.message}`));
-          }
-        }
-      });
-    });
-    req.on("error", reject);
-    req.setTimeout(3e4, () => {
-      req.destroy();
-      reject(new Error("HTTP request timed out"));
-    });
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(3e4)
   });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status}: ${body.substring(0, 500)}`);
+  }
+  return res.json();
 }
 async function httpPostJson(url, accessToken, body) {
-  const https = require("https");
   const payload = body != null ? JSON.stringify(body) : "";
-  const parsed = new URL(url);
-  return new Promise((resolve, reject) => {
-    const req = https.request({
-      hostname: parsed.hostname,
-      port: parsed.port || 443,
-      path: parsed.pathname + parsed.search,
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        "OData-MaxVersion": "4.0",
-        "OData-Version": "4.0",
-        "Content-Length": Buffer.byteLength(payload)
-      }
-    }, (res) => {
-      let data = "";
-      res.on("error", reject);
-      res.on("data", (chunk) => data += chunk);
-      res.on("end", () => {
-        if (res.statusCode >= 400) {
-          reject(new Error(`HTTP ${res.statusCode}: ${data.substring(0, 500)}`));
-        } else if (res.statusCode === 204 || !data.trim()) {
-          resolve(null);
-        } else {
-          try {
-            resolve(JSON.parse(data));
-          } catch (e) {
-            reject(new Error(`Invalid JSON: ${e.message}`));
-          }
-        }
-      });
-    });
-    req.on("error", reject);
-    req.setTimeout(6e4, () => {
-      req.destroy();
-      reject(new Error("HTTP request timed out"));
-    });
-    req.write(payload);
-    req.end();
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "OData-MaxVersion": "4.0",
+      "OData-Version": "4.0"
+    },
+    body: payload || void 0,
+    signal: AbortSignal.timeout(6e4)
   });
+  if (res.status === 204) return null;
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status}: ${errBody.substring(0, 500)}`);
+  }
+  const text = await res.text();
+  if (!text.trim()) return null;
+  return JSON.parse(text);
 }
 async function cmdListAgents(args) {
   if (!args.tenantId) die("--tenant-id (or CPS_TENANT_ID) is required");
@@ -15427,6 +15814,30 @@ async function cmdListEnvs(args) {
   process.stdout.write(
     JSON.stringify({ status: "ok", environments }, null, 2) + "\n"
   );
+}
+async function resolveEnvironmentById(tenantId, environmentId) {
+  const bapToken = await getOrAcquireToken(
+    tenantId,
+    VSCODE_CLIENT_ID,
+    [BAP_TOKEN_SCOPE],
+    "Power Platform API (env lookup)"
+  );
+  const url = `https://${BAP_HOST}/providers/Microsoft.BusinessAppPlatform/environments/${encodeURIComponent(environmentId)}?api-version=2024-05-01&$expand=properties.permissions`;
+  log(`Resolving environment details for ${environmentId}...`);
+  const env = await httpGetJson(url, bapToken.accessToken);
+  const meta = env.properties?.linkedEnvironmentMetadata;
+  if (!meta?.instanceUrl) {
+    throw new Error(
+      `Environment ${environmentId} has no linked Dataverse instance. It may not have been provisioned or you may not have access.`
+    );
+  }
+  return {
+    environmentId: env.name,
+    displayName: env.properties.displayName,
+    dataverseUrl: meta.instanceUrl,
+    agentManagementUrl: env.properties.runtimeEndpoints?.["microsoft.PowerVirtualAgents"] || null,
+    environmentSku: env.properties.environmentSku
+  };
 }
 var PUBLISH_POLL_INTERVAL_MS = 1e4;
 async function cmdPublish(args) {
@@ -15501,9 +15912,16 @@ async function cmdPublish(args) {
 async function cmdChanges(args) {
   if (!args.workspace) die("--workspace is required");
   if (!args.tenantId) die("--tenant-id (or CPS_TENANT_ID) is required");
-  if (!args.environmentUrl) die("--environment-url (or CPS_ENVIRONMENT_URL) is required");
-  if (!args.environmentId) die("--environment-id (or CPS_ENVIRONMENT_ID) is required");
-  if (!args.agentMgmtUrl) die("--agent-mgmt-url (or CPS_AGENT_MGMT_URL) is required");
+  if (!args.environmentId) die("--environment-id (or --url / CPS_ENVIRONMENT_ID) is required");
+  if (!args.environmentUrl || !args.agentMgmtUrl) {
+    log("Resolving environment details from BAP API...");
+    const envDetails = await resolveEnvironmentById(args.tenantId, args.environmentId);
+    if (!args.environmentUrl) args.environmentUrl = envDetails.dataverseUrl;
+    if (!args.agentMgmtUrl) args.agentMgmtUrl = envDetails.agentManagementUrl;
+    if (!args.environmentName) args.environmentName = envDetails.displayName;
+  }
+  if (!args.environmentUrl) die("Could not resolve --environment-url (or CPS_ENVIRONMENT_URL)");
+  if (!args.agentMgmtUrl) die("Could not resolve --agent-mgmt-url (or CPS_AGENT_MGMT_URL)");
   const agentDir = findAgentDir(args.workspace);
   const conn = loadConnJson(agentDir);
   const clusterCategory = conn?.AccountInfo?.clusterCategory;
@@ -15601,10 +16019,18 @@ async function fetchAgentInfo(envUrl, agentId, accessToken) {
 async function cmdClone(args) {
   if (!args.workspace) die("--workspace is required");
   if (!args.tenantId) die("--tenant-id (or CPS_TENANT_ID) is required");
-  if (!args.environmentUrl) die("--environment-url (or CPS_ENVIRONMENT_URL) is required");
-  if (!args.environmentId) die("--environment-id (or CPS_ENVIRONMENT_ID) is required");
-  if (!args.agentMgmtUrl) die("--agent-mgmt-url (or CPS_AGENT_MGMT_URL) is required");
-  if (!args.agentId) die("--agent-id is required for clone");
+  if (!args.agentId) die("--agent-id (or --url) is required for clone");
+  if (!args.environmentId) die("--environment-id (or --url / CPS_ENVIRONMENT_ID) is required");
+  if (!args.environmentUrl || !args.agentMgmtUrl) {
+    log("Resolving environment details from BAP API...");
+    const envDetails = await resolveEnvironmentById(args.tenantId, args.environmentId);
+    if (!args.environmentUrl) args.environmentUrl = envDetails.dataverseUrl;
+    if (!args.agentMgmtUrl) args.agentMgmtUrl = envDetails.agentManagementUrl;
+    if (!args.environmentName) args.environmentName = envDetails.displayName;
+    log(`Resolved: ${envDetails.displayName} (${envDetails.dataverseUrl})`);
+  }
+  if (!args.environmentUrl) die("Could not resolve --environment-url (or CPS_ENVIRONMENT_URL)");
+  if (!args.agentMgmtUrl) die("Could not resolve --agent-mgmt-url (or CPS_AGENT_MGMT_URL)");
   const envUrl = args.environmentUrl.replace(/\/+$/, "");
   const DEFAULT_CLUSTER_CATEGORY = 5;
   const cpsToken = await getOrAcquireIslandToken(args.tenantId, DEFAULT_CLUSTER_CATEGORY, "Island API");
@@ -15640,7 +16066,8 @@ async function cmdClone(args) {
       rootFolder
     };
     log("Calling powerplatformls/cloneAgent...");
-    const result = await client.sendCustomRequest(
+    const result = await sendCustomRequestWithRetries(
+      client,
       "powerplatformls/cloneAgent",
       request
     );
@@ -15690,6 +16117,9 @@ async function main() {
   }
   process.exit(0);
 }
+if (typeof module !== "undefined") {
+  module.exports = { parseAgentUrl };
+}
 main();
 /*! Bundled license information:
 
@@ -15697,6 +16127,6 @@ safe-buffer/index.js:
   (*! safe-buffer. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> *)
 
 @azure/msal-node/lib/msal-node.cjs:
-  (*! @azure/msal-node v5.0.6 2026-03-02 *)
-  (*! @azure/msal-common v16.2.0 2026-03-02 *)
+  (*! @azure/msal-node v5.1.4 2026-04-21 *)
+  (*! @azure/msal-common v16.5.1 2026-04-21 *)
 */
