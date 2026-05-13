@@ -92,6 +92,14 @@ Stops the orchestrator from leaking internal reasoning and tool call metadata to
 - The agent has connector actions that the orchestrator invokes indirectly
 - Responses contain `explanation_of_tool_call` or similar internal metadata
 
+### Channel-Aware Behavior → [channel-aware-behavior.md](${CLAUDE_SKILL_DIR}/../../patterns/channel-aware-behavior.md)
+
+Detects the host channel from `System.Activity.ChannelId` and gates behavior per surface (Teams, M365 Copilot, web chat, Direct Line, voice).
+
+**Read this pattern when:**
+- A feature works on one channel but breaks on another (file upload, Adaptive Card variants, hyperlinks)
+- The user asks to detect Teams vs. M365 Copilot vs. web vs. voice
+- A naive `=Lower(ChannelId) = "msteams"` check is silently failing for `msteams:Copilot` or other compound channel IDs
 ### RAI Error Handling → [rai-error-handling.md](${CLAUDE_SKILL_DIR}/../../patterns/rai-error-handling.md)
 
 Classifies Azure OpenAI content-filter errors by subcode in the OnError topic and returns category-specific user messages with telemetry. Azure OpenAI models only — does not work with Anthropic or xAI models.
