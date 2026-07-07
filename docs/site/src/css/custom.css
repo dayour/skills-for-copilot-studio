@@ -35,6 +35,41 @@
   --ifm-toc-border-color: rgba(139, 92, 246, 0.12);
 }
 
+/* -- Pattern maturity badges ------------------------------------------------ */
+/* Semantic accent colors layered on top of the GitHub + Copilot Studio purple
+   brand: proven=mint green, recommended=nitrous blue, experimental=lava orange. */
+.pattern-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: capitalize;
+  border: 1px solid transparent;
+}
+
+.pattern-status-badge.status-proven {
+  color: #3fe0a8;
+  background: rgba(63, 224, 168, 0.12);
+  border-color: rgba(63, 224, 168, 0.35);
+}
+
+.pattern-status-badge.status-recommended {
+  color: #2e96ff;
+  background: rgba(46, 150, 255, 0.12);
+  border-color: rgba(46, 150, 255, 0.35);
+}
+
+.pattern-status-badge.status-experimental {
+  color: #ff7a4d;
+  background: rgba(255, 122, 77, 0.12);
+  border-color: rgba(255, 122, 77, 0.35);
+}
+
+
 /* -- Navbar --------------------------------------------------------------- */
 .navbar {
   box-shadow: none;

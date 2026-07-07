@@ -4,7 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
   title: 'Skills for Copilot Studio',
-  tagline: 'Author, test, and troubleshoot Copilot Studio agents from your terminal',
+  tagline: 'Design, manage, author, and test Copilot Studio agents from your terminal',
   favicon: 'img/favicon.ico',
 
   url: 'https://dayour.github.io',
@@ -36,7 +36,7 @@ const config: Config = {
           routeBasePath: 'docs',
           sidebarPath: './sidebars.ts',
           editUrl:
-            'https://github.com/microsoft/skills-for-copilot-studio/tree/main/docs/src/',
+            'https://github.com/dayour/skills-for-copilot-studio/tree/main/docs/src/',
         },
         blog: false,
         theme: {
@@ -62,8 +62,13 @@ const config: Config = {
           label: 'Docs',
         },
         {
-          to: '/docs/agents/author',
+          to: '/docs/agents/advisor',
           label: 'Agents',
+          position: 'left',
+        },
+        {
+          to: '/docs/patterns/overview',
+          label: 'Patterns',
           position: 'left',
         },
         {
@@ -72,7 +77,7 @@ const config: Config = {
           position: 'left',
         },
         {
-          href: 'https://github.com/microsoft/skills-for-copilot-studio',
+          href: 'https://github.com/dayour/skills-for-copilot-studio',
           label: 'GitHub',
           position: 'right',
         },
@@ -92,31 +97,33 @@ const config: Config = {
         {
           title: 'Agents',
           items: [
+            { label: 'Advisor', to: '/docs/agents/advisor' },
             { label: 'Author', to: '/docs/agents/author' },
+            { label: 'Manage', to: '/docs/agents/manage' },
             { label: 'Test', to: '/docs/agents/test' },
-            { label: 'Troubleshoot', to: '/docs/agents/troubleshoot' },
           ],
         },
         {
-          title: 'Skills',
+          title: 'Skills & Patterns',
           items: [
             { label: 'All Skills', to: '/docs/skills/overview' },
             { label: 'Authoring', to: '/docs/skills/authoring' },
+            { label: 'Deployment & ALM', to: '/docs/skills/deployment' },
             { label: 'Testing', to: '/docs/skills/testing' },
-            { label: 'Utilities', to: '/docs/skills/utilities' },
+            { label: 'Pattern Library', to: '/docs/patterns/overview' },
           ],
         },
         {
           title: 'Community',
           items: [
-            { label: 'GitHub', href: 'https://github.com/microsoft/skills-for-copilot-studio' },
-            { label: 'Issues', href: 'https://github.com/microsoft/skills-for-copilot-studio/issues' },
+            { label: 'This Fork', href: 'https://github.com/dayour/skills-for-copilot-studio' },
+            { label: 'Upstream Project', href: 'https://github.com/microsoft/skills-for-copilot-studio' },
             { label: 'Contributing', href: 'https://github.com/microsoft/skills-for-copilot-studio/blob/main/CONTRIBUTING.md' },
             { label: 'Copilot Studio', href: 'https://aka.ms/CopilotStudio' },
           ],
         },
       ],
-      copyright: `Copyright &copy; ${new Date().getFullYear()} Microsoft Corporation. MIT License.`,
+      copyright: `Copyright &copy; ${new Date().getFullYear()} Microsoft Corporation. MIT License. This site is maintained by <a href="https://github.com/dayour">@dayour</a> as a fork of the upstream project.`,
     },
     prism: {
       theme: prismThemes.github,

@@ -13,7 +13,7 @@ Creates a new topic YAML file with valid structure, unique node IDs, and proper 
 
 **Usage:**
 ```
-/copilot-studio:author Create a new topic called "Product Information"
+/copilot-studio:copilot-studio-author Create a new topic called "Product Information"
 ```
 
 **What it does:**
@@ -29,10 +29,10 @@ Adds or modifies a node within an existing topic.
 
 **Usage:**
 ```
-/copilot-studio:author Add a question node to the IT request topic
+/copilot-studio:copilot-studio-author Add a question node to the IT request topic
 ```
 
-**Supported node types:** Message, Question, Condition, Action, Redirect, GoTo, SetVariable, and more. Use `/copilot-studio:list-kinds` to see all valid node kinds.
+**Supported node types:** Message, Question, Condition, Action, Redirect, GoTo, SetVariable, and more. Use `/copilot-studio:copilot-studio-advisor list all kinds` to see all valid node kinds.
 
 ## add-action
 
@@ -40,7 +40,7 @@ Adds a connector action to a topic (Teams, Outlook, SharePoint, Dataverse, etc.)
 
 **Usage:**
 ```
-/copilot-studio:author Add a Teams notification action to the alert topic
+/copilot-studio:copilot-studio-author Add a Teams notification action to the alert topic
 ```
 
 ## edit-action
@@ -49,7 +49,7 @@ Modifies an existing connector action configuration.
 
 **Usage:**
 ```
-/copilot-studio:author Update the Outlook action to include CC recipients
+/copilot-studio:copilot-studio-author Update the Outlook action to include CC recipients
 ```
 
 ## add-knowledge
@@ -58,7 +58,7 @@ Adds a knowledge source for grounded responses. Copilot Studio automatically que
 
 **Usage:**
 ```
-/copilot-studio:author Add a knowledge source pointing to https://contoso.com/docs
+/copilot-studio:copilot-studio-author Add a knowledge source pointing to https://contoso.com/docs
 ```
 
 ## add-generative-answers
@@ -67,7 +67,7 @@ Adds a `SearchAndSummarizeContent` node for explicit control over generative ans
 
 **Usage:**
 ```
-/copilot-studio:author Add generative answers with a custom search query to the FAQ topic
+/copilot-studio:copilot-studio-author Add generative answers with a custom search query to the FAQ topic
 ```
 
 ## add-other-agents
@@ -76,7 +76,7 @@ Adds child agents or connected agent references.
 
 **Usage:**
 ```
-/copilot-studio:author Add the HR bot as a connected agent
+/copilot-studio:copilot-studio-author Add the HR bot as a connected agent
 ```
 
 ## add-global-variable
@@ -85,7 +85,7 @@ Creates a global variable accessible across topics.
 
 **Usage:**
 ```
-/copilot-studio:author Add a global variable called "UserDepartment" of type string
+/copilot-studio:copilot-studio-author Add a global variable called "UserDepartment" of type string
 ```
 
 ## edit-agent
@@ -94,7 +94,7 @@ Modifies agent-level settings and instructions.
 
 **Usage:**
 ```
-/copilot-studio:author Update the agent instructions to always respond in formal English
+/copilot-studio:copilot-studio-author Update the agent instructions to always respond in formal English
 ```
 
 ## edit-triggers
@@ -103,7 +103,7 @@ Modifies trigger phrases or the model description for a topic.
 
 **Usage:**
 ```
-/copilot-studio:author Add "billing inquiry" and "invoice question" as triggers for the billing topic
+/copilot-studio:copilot-studio-author Add "billing inquiry" and "invoice question" as triggers for the billing topic
 ```
 
 ## add-adaptive-card
@@ -112,5 +112,5 @@ Adds an adaptive card to a topic response.
 
 **Usage:**
 ```
-/copilot-studio:author Add an adaptive card showing order status with tracking number and delivery date
+/copilot-studio:copilot-studio-author Add an adaptive card showing order status with tracking number and delivery date
 ```

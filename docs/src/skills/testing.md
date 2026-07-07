@@ -1,19 +1,67 @@
 ---
-sidebar_position: 3
+sidebar_position: 4
 title: Testing Skills
 ---
 
 # Testing Skills
 
-Testing skills interact with published Copilot Studio agents and test infrastructure. They are the primary tools used by the [test agent](../agents/test.md).
+Testing skills interact with draft and published Copilot Studio agents and test infrastructure.
+They are the primary tools used by the [test agent](../agents/test.md).
 
-## chat-with-agent
+## test-auth
+
+Authenticates for evaluation and chat operations. Asks for the App Registration client ID and
+presents the full configuration checklist (redirect URI, public client flow, permissions, admin
+consent). All other testing skills delegate to this rather than handling auth themselves.
+
+**Usage:**
+```
+/copilot-studio:copilot-studio-test Authenticate for testing
+```
+
+## run-eval
+
+Runs **in-product PPAPI evaluations** directly against the agent -- the fast iteration loop, since
+it works against the **draft** (pushed, not published). Lists available test sets and runs the one
+you choose.
+
+**Usage:**
+```
+/copilot-studio:copilot-studio-test Run evals against my agent
+```
+
+## create-eval-set
+
+Reads the agent's YAML and writes a CSV test set for import into the Copilot Studio Evaluate tab.
+
+**Usage:**
+```
+/copilot-studio:copilot-studio-test Create a test set from my current topics
+```
+
+## analyze-evals
+
+Analyzes evaluation results exported as CSV from the Copilot Studio UI, producing failure analysis
+and proposed YAML fixes.
+
+**Usage:**
+```
+/copilot-studio:copilot-studio-test Analyze my evaluation results from ~/Downloads/Evaluate MyAgent.csv
+```
+
+## detect-mode
+
+Queries the Dataverse `bots` entity to determine whether the agent uses DirectLine (no auth /
+manual auth) or the Copilot Studio SDK (integrated auth / Entra ID SSO). Used automatically before
+point-testing to route to the correct chat skill.
+
+## chat-sdk
 
 Sends a single utterance to a published agent via the Copilot Studio Client SDK and returns the full response.
 
 **Usage:**
 ```
-/copilot-studio:test Send "What's the PTO policy?" to the published agent
+/copilot-studio:copilot-studio-test Send "What's the PTO policy?" to the published agent
 ```
 
 **How it works:**
@@ -32,17 +80,13 @@ Sends a single utterance to a published agent via the Copilot Studio Client SDK 
 
 **Multi-turn support:** The skill reuses the conversation context automatically, enabling multi-turn testing without re-authentication.
 
-## run-tests
+## run-tests-kit
 
-Runs batch test suites or analyzes evaluation results. Supports two modes:
-
-### Kit Mode (Batch Testing)
-
-Runs pre-defined test sets via the [Power CAT Copilot Studio Kit](https://github.com/microsoft/Power-CAT-Copilot-Studio-Kit).
+Runs pre-defined batch test sets via the [Power CAT Copilot Studio Kit](https://github.com/microsoft/Power-CAT-Copilot-Studio-Kit).
 
 **Usage:**
 ```
-/copilot-studio:test Run my test suite
+/copilot-studio:copilot-studio-test Run my test suite
 ```
 
 **Requirements:**
@@ -55,27 +99,13 @@ Runs pre-defined test sets via the [Power CAT Copilot Studio Kit](https://github
 - Response latency measurements
 - Summary statistics
 
-### Eval Mode (Evaluation Analysis)
-
-Analyzes evaluation results exported as CSV from the Copilot Studio UI.
-
-**Usage:**
-```
-/copilot-studio:test Analyze my evaluation results from ~/Downloads/Evaluate MyAgent.csv
-```
-
-**What it produces:**
-- Failure analysis with root causes
-- Proposed YAML fixes
-- Recommendations for improving agent quality
-
-## directline-chat
+## chat-directline
 
 Sends a single utterance to a bot via the DirectLine v3 REST API and returns the full response. Works with any bot reachable via DirectLine -- no Azure App Registration required when using a token endpoint.
 
 **Usage:**
 ```
-/copilot-studio:test Send "Hello" using my token endpoint
+/copilot-studio:copilot-studio-test Send "Hello" using my token endpoint
 ```
 
 **Connection Modes:**

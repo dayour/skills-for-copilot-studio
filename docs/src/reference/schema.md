@@ -5,7 +5,7 @@ title: YAML Schema Reference
 
 # YAML Schema Reference
 
-The plugin validates all YAML output against the official Copilot Studio authoring schema (`bot.schema.yaml-authoring.json`). This page documents the schema structure and key definitions.
+The plugin validates all YAML output against the official Copilot Studio authoring schema (`bot.schema.yaml-authoring.json`) -- 744 definitions and 447 valid `kind` values. This page documents the schema structure and key definitions.
 
 ## Schema Location
 
@@ -20,13 +20,13 @@ reference/bot.schema.yaml-authoring.json
 Use the schema lookup skill to find specific definitions:
 
 ```
-/copilot-studio:troubleshoot Look up the schema for SendActivity
+/copilot-studio:copilot-studio-advisor Look up the schema for SendActivity
 ```
 
 Or list all valid kind values:
 
 ```
-/copilot-studio:author What node kinds are available?
+/copilot-studio:copilot-studio-author What node kinds are available?
 ```
 
 ## Core Concepts
@@ -48,7 +48,7 @@ Every YAML node has a `kind` field that determines its type. Valid kinds include
 - **RedirectToTopic** -- Redirect to another topic
 - **EndConversation** -- End the current conversation
 
-Use `/copilot-studio:list-kinds` for the complete list.
+Use `/copilot-studio:copilot-studio-advisor list all kinds` for the complete list (backed by the `list-kinds` skill).
 
 ### Topic Structure
 
@@ -135,4 +135,4 @@ reference/connectors/
 
 ## Validation
 
-All validation is performed by the `/copilot-studio:validate` skill, which checks YAML files against these schemas. Validation runs automatically after any authoring operation and can be invoked directly via the troubleshoot agent.
+All validation is performed by the `validate` skill, which checks YAML files against these schemas. Validation runs automatically after any authoring operation and can be invoked directly via the Advisor agent (`/copilot-studio:copilot-studio-advisor Validate my agent`).

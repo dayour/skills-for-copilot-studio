@@ -42,7 +42,7 @@ Templates are used automatically by the author agent when creating new content. 
 For example:
 
 ```
-/copilot-studio:author Create a greeting topic
+/copilot-studio:copilot-studio-author Create a greeting topic
 ```
 
 The agent uses the `greeting.topic.mcs.yml` template as a base, customizes it for your agent, generates unique IDs, and saves the result.

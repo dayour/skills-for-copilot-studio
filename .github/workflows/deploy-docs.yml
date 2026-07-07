@@ -57,6 +57,9 @@ jobs:
             echo "- [\`$short\`](https://github.com/dayour/skills-for-copilot-studio/commit/$hash) $msg"
           done >> docs/src/changelog.md
 
+      - name: Generate pattern pages
+        run: node docs/scripts/generate-patterns.js
+
       - name: Install dependencies
         working-directory: docs/site
         run: npm ci

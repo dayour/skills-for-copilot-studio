@@ -24,7 +24,7 @@ You also need access to a Power Platform environment with Copilot Studio and an 
 
 ```bash
 /plugin marketplace add microsoft/skills-for-copilot-studio
-/plugin install copilot-studio@microsoft/skills-for-copilot-studio
+/plugin install copilot-studio@skills-for-copilot-studio
 ```
 
 Once installed, the plugin is available globally.
@@ -48,34 +48,42 @@ claude plugin install /path/to/skills-for-copilot-studio --scope user
 claude plugin install /path/to/skills-for-copilot-studio --scope project
 ```
 
-To verify, type `/` in the input -- you should see `copilot-studio:author`, `copilot-studio:test`, and `copilot-studio:troubleshoot` in the autocomplete menu.
+To verify, type `/` in the input -- you should see `copilot-studio:copilot-studio-manage`,
+`copilot-studio:copilot-studio-author`, `copilot-studio:copilot-studio-test`, and
+`copilot-studio:copilot-studio-advisor` in the autocomplete menu.
 
 ## Usage
 
-The plugin provides three commands, each backed by a specialized agent:
+The plugin provides four sub-agents, each backed by a specialized agent:
 
 ```
-/copilot-studio:author      Create and edit YAML (topics, actions, knowledge, triggers, variables)
-/copilot-studio:test         Test published agents — point-tests, batch suites, or evaluation analysis
-/copilot-studio:troubleshoot Debug issues — wrong topic routing, validation errors, unexpected behavior
+/copilot-studio:copilot-studio-manage       Clone, push, pull, and sync agent content between local files and the cloud
+/copilot-studio:copilot-studio-author       Create and edit YAML (topics, actions, knowledge, triggers, variables)
+/copilot-studio:copilot-studio-test         Test agents — in-product evals against the draft, point-tests, batch suites, or evaluation analysis
+/copilot-studio:copilot-studio-advisor      Design guidance, agent review, and troubleshooting
 ```
 
 ## Quick Start
 
-After cloning a Copilot Studio agent with the VS Code extension:
+After cloning a Copilot Studio agent with the Manage agent:
 
 ```bash
-# Open your agent's directory
-cd ~/CopilotStudio/MyAgent
+# Clone an agent from the cloud (guided flow — opens browser for sign-in)
+/copilot-studio:copilot-studio-manage clone
 
 # Design and build topics
-/copilot-studio:author Create a topic that handles IT service requests
+/copilot-studio:copilot-studio-author Create a topic that handles IT service requests
 
-# Push & publish in Copilot Studio, then test
-/copilot-studio:test Send "How do I request a new laptop?" to the published agent
+# Pull latest, push your changes
+/copilot-studio:copilot-studio-manage pull
+/copilot-studio:copilot-studio-manage push
+
+# Publish, then test
+/copilot-studio:copilot-studio-manage publish
+/copilot-studio:copilot-studio-test Send "How do I request a new laptop?" to the published agent
 
 # Troubleshoot and fix issues
-/copilot-studio:troubleshoot The agent is hallucinating — it's not using real data from our knowledge base
+/copilot-studio:copilot-studio-advisor The agent is hallucinating — it's not using real data from our knowledge base
 ```
 
 See the [Setup Guide](./setup-guide.md) for a full end-to-end walkthrough including validation, testing options, and troubleshooting.

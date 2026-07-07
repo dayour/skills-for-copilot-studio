@@ -17,7 +17,7 @@ Common issues and solutions when working with the Skills for Copilot Studio plug
 | Duplicate ID error | Non-unique node IDs | Regenerate IDs for copied nodes |
 | Power Fx error | Missing `=` prefix | Ensure expressions start with `=` |
 | Plugin not found | Not installed or wrong path | Run `/plugin list` to verify |
-| Test returns "not reachable" | Agent not published | Push AND publish before testing |
+| Test returns "not reachable" | Agent not published | Push AND publish before testing (or use in-product evals, which test the draft) |
 | Authentication failure | Missing App Registration | Create an Azure App Registration with correct permissions |
 
 ## Agent Lifecycle
@@ -27,16 +27,19 @@ Understanding the agent lifecycle is critical for testing and troubleshooting.
 | State | Where it lives | Who can see it |
 |-------|---------------|----------------|
 | **Local** | YAML files on disk | Only you (the AI agent and the user) |
-| **Pushed (Draft)** | Power Platform environment | Copilot Studio UI -- authoring canvas and Test tab |
-| **Published** | Power Platform environment (live) | External clients -- `/chat-with-agent`, `/run-tests`, DirectLine, Teams |
+| **Pushed (Draft)** | Power Platform environment | Copilot Studio UI -- authoring canvas and Test tab; also reachable by in-product evaluations (`run-eval`) |
+| **Published** | Power Platform environment (live) | External clients -- point-tests, Kit batch suites, DirectLine, Teams |
 
-**Key rule**: Pushing with the VS Code Extension uploads changes as a **draft**. The user can test drafts in the Copilot Studio Test tab, but the AI agent and external testing tools (`/chat-with-agent`, `/run-tests`) can only interact with **published** content. Publishing is a separate step done in the Copilot Studio UI.
+**Key rule**: Pushing (with the Manage agent or the VS Code Extension) uploads changes as a
+**draft**. In-product evaluations can test the draft directly -- the fastest iteration loop. Point-
+tests and Kit batch suites can only interact with **published** content. Publishing is a separate
+step, done via the Manage agent or the Copilot Studio UI.
 
 ## Debugging Workflow
 
 1. Understand the symptom (wrong topic, no response, error, unexpected output)
-2. Search known issues first -- use `/copilot-studio:troubleshoot` with the symptom description
-3. Validate the relevant YAML files
+2. Check the [pattern library](./patterns/overview.md) for known pitfalls that match the symptom
+3. Validate the relevant YAML files -- use `/copilot-studio:copilot-studio-advisor`
 4. Look up schema definitions if needed
 5. Check trigger phrases and model descriptions
 6. Propose specific YAML changes
